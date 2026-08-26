@@ -251,7 +251,7 @@ export default function CertificateManagement() {
           {/* Certificate Table Card */}
           <div className="bg-white border border-[#E8E6E1] rounded-3xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
+              <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
                 <thead>
                   <tr className="border-b border-[#E8E6E1] text-[10px] font-black text-slate-500 uppercase tracking-wider bg-[#FAF9F6]">
                     <th className="p-4">Student</th>
@@ -327,7 +327,7 @@ export default function CertificateManagement() {
                     ))
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </div>
         </div>

@@ -55,7 +55,7 @@ const FeesTable = ({
 
       {/* Main Table Wrapper */}
       <div className="w-full overflow-x-auto bg-white border border-[#EBEAE6] rounded-2xl shadow-sm">
-        <table className="w-full text-left border-collapse text-xs font-semibold text-slate-650">
+        <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-650">
           <thead>
             <tr className="border-b border-[#EBEAE6] bg-[#FAF9F6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
               {columns.map((col, idx) => (
@@ -105,7 +105,7 @@ const FeesTable = ({
               ))
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       {/* Pagination Controls */}

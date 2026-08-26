@@ -1,5 +1,9 @@
 const Lead = require('../models/Lead');
-
+const Admission = require('../models/Admission');
+const Student = require('../models/Student');
+const studentService = require('../services/studentService');
+const feePlanService = require('../services/feePlanService');
+const paymentService = require('../services/paymentService');
 const createLead = async (req, res) => {
   try {
     let { name, phone, course, source, email, message } = req.body;
@@ -223,10 +227,310 @@ const createOfflineLead = async (req, res) => {
   }
 };
 
+const admitStudent = async (req, res) => {
+  const creatorId = req.user.id || req.user._id;
+  try {
+    const admissionData = req.body;
+    
+    // 1. Calculate and validate remaining fees
+    const totalFees = Number(admissionData.totalFees) || 0;
+    const advancePaid = Number(admissionData.advancePaid) || 0;
+    if (advancePaid > totalFees) {
+      return res.status(400).json({ success: false, message: "Advance payment cannot exceed total fees." });
+    }
+    const remainingFees = totalFees - advancePaid;
+    admissionData.remainingFees = remainingFees;
+    
+    // Normalize courses safely
+    if (typeof admissionData.courses === 'string') {
+      try {
+        admissionData.courses = JSON.parse(admissionData.courses);
+      } catch (e) {
+        admissionData.courses = admissionData.courses.split(',').map(c => c.trim()).filter(Boolean);
+      }
+    }
+    if (!Array.isArray(admissionData.courses)) {
+      admissionData.courses = admissionData.courses ? [String(admissionData.courses)] : [];
+    }
+
+    // Parse emiSchedule safely
+    if (typeof admissionData.emiSchedule === 'string') {
+      try {
+        admissionData.emiSchedule = JSON.parse(admissionData.emiSchedule);
+      } catch (e) {
+        admissionData.emiSchedule = [];
+      }
+    }
+
+    // Check for duplicate enrollment number
+    const existingAdmission = await Admission.findOne({ enrollmentNo: admissionData.enrollmentNo });
+    if (existingAdmission) {
+      return res.status(400).json({ success: false, message: "This enrollment number is already registered. Please enter a different number." });
+    }
+    
+    // 2. Check if student with this enrollment number already exists in Fees Management
+    // We check this BEFORE creating the LeadAdmission to avoid half-created state if it fails.
+    let feesStudent = await Student.findOne({ studentId: admissionData.enrollmentNo });
+    let isNewStudent = false;
+    
+    if (!feesStudent) {
+      isNewStudent = true;
+    }
+    
+    // Handle uploaded files
+    if (req.files) {
+      if (req.files.photo && req.files.photo[0]) {
+        admissionData.studentPhotograph = `/uploads/profile-pictures/${req.files.photo[0].filename}`;
+      }
+      
+      // Handle multiple ID document photos
+      admissionData.idDocumentPhotos = [];
+      if (req.files.idDocumentPhotos && req.files.idDocumentPhotos.length > 0) {
+        req.files.idDocumentPhotos.forEach(file => {
+          admissionData.idDocumentPhotos.push(`/uploads/profile-pictures/${file.filename}`);
+        });
+      } else if (req.files.idDocumentImage && req.files.idDocumentImage[0]) {
+        // Fallback for older middleware usage if any
+        admissionData.idDocumentImage = `/uploads/profile-pictures/${req.files.idDocumentImage[0].filename}`;
+        admissionData.idDocumentPhotos.push(admissionData.idDocumentImage);
+      }
+    }
+
+    // Save Admission in Lead Management flow
+    const admission = await Admission.create({
+      ...admissionData,
+      createdBy: creatorId
+    });
+
+    // 3. Integrate with Fees Management
+    if (isNewStudent) {
+      let emailToUse = admissionData.email;
+      if (!emailToUse || emailToUse.trim() === '') {
+        emailToUse = `${admissionData.contact}@no-email.internal`;
+      }
+
+      const studentPayload = {
+        studentId: admissionData.enrollmentNo,
+        fullName: admissionData.fullName,
+        fatherName: admissionData.fatherHusbandName || 'Not Provided',
+        alternateNumber: admissionData.alternateNumber || '',
+        centreReference: admissionData.centreReference || '',
+        studentPhotograph: admissionData.studentPhotograph || '',
+        idDocumentPhotos: admissionData.idDocumentPhotos || [],
+        mobile: admissionData.contact,
+        email: emailToUse,
+        address: admissionData.address || 'N/A',
+        dob: admissionData.dob || null,
+        courseDuration: admissionData.courseDuration || '',
+        course: (admissionData.courses && admissionData.courses.length > 0) ? admissionData.courses.join(', ') : 'Unknown',
+        totalFees: totalFees,
+        paymentPlan: remainingFees === 0 ? 'FULL_PAYMENT' : (admissionData.paymentPlan === 'ONE_TIME' ? 'FULL_PAYMENT' : 'INSTALLMENT')
+      };
+      
+      try {
+        feesStudent = await studentService.registerStudent(studentPayload, creatorId);
+        
+        // Setup Fee Plan
+        const feePlanPayload = {
+          studentId: feesStudent._id,
+          totalFees: totalFees,
+          paymentPlan: remainingFees === 0 ? 'FULL_PAYMENT' : (admissionData.paymentPlan === 'ONE_TIME' ? 'FULL_PAYMENT' : 'INSTALLMENT'),
+          numberOfInstallments: admissionData.paymentPlan === 'INSTALLMENT' && admissionData.installmentMonths ? parseInt(admissionData.installmentMonths) : (remainingFees > 0 ? 3 : 1),
+          firstDueDate: admissionData.paymentPlan === 'INSTALLMENT' && admissionData.firstEmiDate ? new Date(admissionData.firstEmiDate) : new Date(),
+          installments: admissionData.paymentPlan === 'INSTALLMENT' && admissionData.emiSchedule ? admissionData.emiSchedule : undefined,
+          advanceAmount: advancePaid
+        };
+        
+        const newFeePlan = await feePlanService.setupFeePlan(feePlanPayload, creatorId);
+
+          // Initial Payment
+          if (advancePaid > 0) {
+             let paymentType = 'INITIAL_PAYMENT';
+             let installmentId = undefined;
+             
+             if (newFeePlan.paymentPlan === 'FULL_PAYMENT' && advancePaid === totalFees) {
+                 paymentType = 'FULL_PAYMENT';
+             } else if (newFeePlan.paymentPlan === 'INSTALLMENT') {
+                 const Installment = require('../models/Installment');
+                 const firstInstallment = await Installment.findOne({ feePlanId: newFeePlan._id }).sort({ installmentNo: 1 });
+                 if (firstInstallment) {
+                    paymentType = 'INSTALLMENT_PAYMENT';
+                    installmentId = firstInstallment._id;
+                 }
+             }
+
+             const paymentData = {
+               studentId: feesStudent._id,
+               paymentType: paymentType,
+               installmentId: installmentId,
+               paymentMode: admissionData.paymentMode || 'Cash',
+               amount: advancePaid,
+               paymentDate: new Date(),
+               remarks: 'Advance paid during Lead Admission'
+             };
+             await paymentService.collectPayment(paymentData, creatorId);
+          }
+
+      } catch (err) {
+        // Rollback Lead Admission if Fees Management integration fails
+        await Admission.findByIdAndDelete(admission._id);
+        throw err;
+      }
+    } else {
+       // If student already exists in Fees Management, we don't recreate the student or fee plan.
+       // The user requested to link/update existing. In this case, we just return success as Lead Admission is saved.
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: "Admission successfully completed",
+      data: admission
+    });
+
+  } catch (error) {
+    console.error("❌ Admission Error:", error.message);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "This enrollment number is already registered. Please enter a different number."
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to process admission"
+    });
+  }
+};
+
+const updateAdmittedStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const admissionData = req.body;
+    const modifierId = req.employee?._id || req.user?._id;
+    
+    if (typeof admissionData.courses === 'string') {
+      try {
+        admissionData.courses = JSON.parse(admissionData.courses);
+      } catch (e) {
+        admissionData.courses = admissionData.courses.split(',').map(c => c.trim()).filter(Boolean);
+      }
+    }
+    if (!Array.isArray(admissionData.courses)) {
+      admissionData.courses = admissionData.courses ? [String(admissionData.courses)] : [];
+    }
+    
+    // Parse emiSchedule safely
+    if (typeof admissionData.emiSchedule === 'string') {
+      try {
+        admissionData.emiSchedule = JSON.parse(admissionData.emiSchedule);
+      } catch (e) {
+        admissionData.emiSchedule = [];
+      }
+    }
+
+    let admission = await Admission.findById(id);
+    if (!admission) return res.status(404).json({ success: false, message: 'Admission not found' });
+    
+    // Check if enrollment number is being updated to an existing one
+    if (admissionData.enrollmentNo && admissionData.enrollmentNo !== admission.enrollmentNo) {
+      const existing = await Admission.findOne({ enrollmentNo: admissionData.enrollmentNo });
+      if (existing) {
+        return res.status(400).json({ success: false, message: "This enrollment number is already registered. Please enter a different number." });
+      }
+    }
+
+    // Handle images
+    if (req.files) {
+      if (req.files.photo && req.files.photo[0]) {
+        admissionData.studentPhotograph = `/uploads/profile-pictures/${req.files.photo[0].filename}`;
+      }
+      
+      let newPhotos = [];
+      if (req.files.idDocumentPhotos && req.files.idDocumentPhotos.length > 0) {
+        req.files.idDocumentPhotos.forEach(file => {
+          newPhotos.push(`/uploads/profile-pictures/${file.filename}`);
+        });
+      } else if (req.files.idDocumentImage && req.files.idDocumentImage[0]) {
+        newPhotos.push(`/uploads/profile-pictures/${req.files.idDocumentImage[0].filename}`);
+        admissionData.idDocumentImage = newPhotos[0];
+      }
+      
+      // Since frontend might send retained images in 'retainedIdDocumentPhotos' array
+      let existingPhotos = admissionData.retainedIdDocumentPhotos || admission.idDocumentPhotos || [];
+      if (typeof existingPhotos === 'string') {
+        try { existingPhotos = JSON.parse(existingPhotos); } catch(e) { existingPhotos = [existingPhotos]; }
+      }
+      admissionData.idDocumentPhotos = [...existingPhotos, ...newPhotos];
+    } else {
+      // If no new files, retain old photos based on what frontend sent or what was in DB
+      let existingPhotos = admissionData.retainedIdDocumentPhotos || admission.idDocumentPhotos || [];
+      if (typeof existingPhotos === 'string') {
+        try { existingPhotos = JSON.parse(existingPhotos); } catch(e) { existingPhotos = [existingPhotos]; }
+      }
+      admissionData.idDocumentPhotos = existingPhotos;
+    }
+
+    if (admissionData.removePhoto === 'true') {
+      admissionData.studentPhotograph = '';
+    }
+    if (admissionData.removeIdDocumentImage === 'true') {
+      admissionData.idDocumentImage = '';
+      admissionData.idDocumentPhotos = [];
+    }
+    
+    // Update admission record
+    Object.assign(admission, admissionData);
+    await admission.save();
+    
+    // Update student record in Fees Management if it exists
+    const feesStudent = await Student.findOne({ studentId: admission.enrollmentNo });
+    if (feesStudent) {
+      const studentPayload = {
+        fullName: admission.fullName,
+        fatherName: admission.fatherHusbandName || 'Not Provided',
+        alternateNumber: admission.alternateNumber || '',
+        centreReference: admission.centreReference || '',
+        mobile: admission.contact,
+        address: admission.address || 'N/A',
+        course: (admission.courses && admission.courses.length > 0) ? admission.courses.join(', ') : 'Unknown',
+      };
+      
+      if (admissionData.studentPhotograph !== undefined) studentPayload.studentPhotograph = admissionData.studentPhotograph;
+      if (admissionData.idDocumentImage !== undefined) studentPayload.idDocumentImage = admissionData.idDocumentImage;
+      if (admissionData.idDocumentPhotos !== undefined) studentPayload.idDocumentPhotos = admissionData.idDocumentPhotos;
+      
+      const emailToUse = admission.email || `${admission.contact}@no-email.internal`;
+      if (emailToUse !== feesStudent.email) {
+        studentPayload.email = emailToUse;
+      }
+      
+      await studentService.updateStudent(feesStudent._id, studentPayload, modifierId);
+    }
+    
+    res.status(200).json({ success: true, message: 'Admission updated successfully', data: admission });
+  } catch (error) {
+    console.error("❌ Edit Admission Error:", error.message);
+    res.status(500).json({ success: false, message: error.message || "Failed to update admission" });
+  }
+};
+
+const getAdmittedStudents = async (req, res) => {
+  try {
+    const admissions = await Admission.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: admissions });
+  } catch (error) {
+    console.error("❌ Fetch Admissions Error:", error.message);
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch admissions" });
+  }
+};
+
 module.exports = {
   createLead,
   getLeads,
   deleteLead,
   updateLead,
   createOfflineLead,
+  admitStudent,
+  updateAdmittedStudent,
+  getAdmittedStudents,
 };

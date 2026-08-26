@@ -29,10 +29,11 @@ const QUALIFICATIONS = [
 ];
 
 const ID_TYPES = ['Aadhar Card', 'PAN Card', 'Voter ID', 'Passport', 'Driving License'];
+const PAYMENT_MODES = ['Cash', 'UPI', 'Card', 'Net Banking', 'Bank Transfer', 'Cheque'];
 
-function generateEnrollmentNo() {
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `JC-2026-${num}`;
+function generatePrefix() {
+  const currentYear = new Date().getFullYear();
+  return `RJ/${currentYear}/`;
 }
 
 function calcAge(dob) {
@@ -48,9 +49,10 @@ function calcAge(dob) {
 const EMPTY_FORM = {
   fullName: '',
   fatherHusbandName: '',
-  motherName: '',
   contact: '',
+  alternateNumber: '',
   email: '',
+  centreReference: '',
   dob: '',
   gender: '',
   qualification: '',
@@ -64,35 +66,101 @@ const EMPTY_FORM = {
   selectedCourses: [],
   manualCourse: '',
   enrolledCourses: [],
+  courseDuration: "",
   totalFees: '',
   advancePaid: '',
   photo: null,
-  enrollmentNo: generateEnrollmentNo(),
+  idDocumentImage: null,
+  removePhoto: false,
+  removeIdDocumentImage: false,
+  enrollmentPrefix: generatePrefix(),
+  manualEnrollmentNo: '',
+  idDocumentPhotos: [],
+  paymentMode: 'Cash',
+  paymentPlan: 'ONE_TIME',
+  installmentMonths: '',
+  firstEmiDate: '',
+  emiSchedule: [],
 };
 
-export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
+export default function AdmissionForm({ onSubmit, editingStudent, onCancel, isSubmitting }) {
   const [form, setForm] = useState(() => {
     if (editingStudent) {
+      let prefix = generatePrefix();
+      let manualNo = editingStudent.enrollmentNo || '';
+      const match = (editingStudent.enrollmentNo || '').match(/^(RJ\/\d{4}\/)(.*)$/);
+      if (match) {
+        prefix = match[1];
+        manualNo = match[2];
+      }
+      
       return {
         ...EMPTY_FORM,
-        fullName: editingStudent.name || '',
+        fullName: editingStudent.name || editingStudent.fullName || '',
+        fatherHusbandName: editingStudent.fatherHusbandName || '',
         contact: editingStudent.contact || '',
-        batchSlot: editingStudent.batch || BATCH_SLOTS[0],
+        alternateNumber: editingStudent.alternateNumber || '',
+        email: editingStudent.email || '',
+        centreReference: editingStudent.centreReference || '',
+        dob: editingStudent.dob || '',
+        gender: editingStudent.gender || '',
+        qualification: editingStudent.qualification || '',
+        parentOccupation: editingStudent.parentOccupation || '',
+        address: editingStudent.address || '',
+        pinCode: editingStudent.pinCode || '',
+        learningMode: editingStudent.learningMode || 'Offline',
+        idType: editingStudent.idType || '',
+        idNumber: editingStudent.idNumber || '',
+        batchSlot: editingStudent.batch || editingStudent.batchSlot || BATCH_SLOTS[0],
         selectedCourses: editingStudent.courses || [],
         totalFees: editingStudent.totalFees || '',
-        advancePaid: editingStudent.paid || '',
-        enrollmentNo: editingStudent.enrollmentNo || generateEnrollmentNo(),
+        advancePaid: editingStudent.paid || editingStudent.advancePaid || '',
+        paymentMode: editingStudent.paymentMode || 'Cash',
+        paymentPlan: editingStudent.paymentPlan || 'ONE_TIME',
+        installmentMonths: editingStudent.installmentMonths || '',
+        firstEmiDate: editingStudent.firstEmiDate ? new Date(editingStudent.firstEmiDate).toISOString().split('T')[0] : '',
+        emiSchedule: editingStudent.emiSchedule || [],
+        enrollmentPrefix: prefix,
+        manualEnrollmentNo: manualNo,
+        photo: editingStudent.studentPhotograph || null,
+        idDocumentPhotos: editingStudent.idDocumentPhotos || (editingStudent.idDocumentImage ? [editingStudent.idDocumentImage] : []),
+        removePhoto: false,
+        removeIdDocumentImage: false,
       };
     }
-    return { ...EMPTY_FORM, enrollmentNo: generateEnrollmentNo() };
+    return { ...EMPTY_FORM, enrollmentPrefix: generatePrefix(), manualEnrollmentNo: '' };
   });
 
   const [qualSearch, setQualSearch] = useState('');
   const [showQualDropdown, setShowQualDropdown] = useState(false);
   const [courseFilter, setCourseFilter] = useState('');
   const [dragOver, setDragOver] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState(null);
+  
+  // Use backend URL if photo is a string, otherwise use FileReader result
+  const [photoPreview, setPhotoPreview] = useState(() => {
+    if (editingStudent?.studentPhotograph && typeof editingStudent.studentPhotograph === 'string') {
+      return editingStudent.studentPhotograph.startsWith('http') 
+        ? editingStudent.studentPhotograph 
+        : `${import.meta.env.VITE_API_URL || ''}${editingStudent.studentPhotograph}`;
+    }
+    return null;
+  });
+  
+  const [idPreviews, setIdPreviews] = useState(() => {
+    if (editingStudent?.idDocumentPhotos && editingStudent.idDocumentPhotos.length > 0) {
+      return editingStudent.idDocumentPhotos.map(url => {
+        if (typeof url !== 'string') return '';
+        return url.startsWith('http') ? url : `${import.meta.env.VITE_API_URL || ''}${url}`;
+      }).filter(Boolean);
+    } else if (editingStudent?.idDocumentImage && typeof editingStudent.idDocumentImage === 'string') {
+      const url = editingStudent.idDocumentImage;
+      return [url.startsWith('http') ? url : `${import.meta.env.VITE_API_URL || ''}${url}`];
+    }
+    return [];
+  });
+
   const fileInputRef = useRef(null);
+  const idFileInputRef = useRef(null);
   const qualRef = useRef(null);
 
   useEffect(() => {
@@ -132,9 +200,45 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
   const handlePhotoFile = (file) => {
     if (!file) return;
     set('photo', file);
+    set('removePhoto', false);
     const reader = new FileReader();
     reader.onloadend = () => setPhotoPreview(reader.result);
     reader.readAsDataURL(file);
+  };
+
+  const removePhoto = () => {
+    set('photo', null);
+    set('removePhoto', true);
+    setPhotoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleIdDocumentFiles = (files) => {
+    if (!files || files.length === 0) return;
+    const newFiles = Array.from(files);
+    
+    setForm(f => ({
+      ...f,
+      idDocumentPhotos: [...f.idDocumentPhotos, ...newFiles],
+      removeIdDocumentImage: false
+    }));
+    
+    const newPreviews = newFiles.map(file => URL.createObjectURL(file));
+    setIdPreviews(prev => [...prev, ...newPreviews]);
+  };
+
+  const removeIdPhoto = (index) => {
+    setForm(f => {
+      const newPhotos = [...f.idDocumentPhotos];
+      newPhotos.splice(index, 1);
+      return { ...f, idDocumentPhotos: newPhotos, removeIdDocumentImage: newPhotos.length === 0 };
+    });
+    setIdPreviews(prev => {
+      const newPrev = [...prev];
+      newPrev.splice(index, 1);
+      return newPrev;
+    });
+    if (idFileInputRef.current) idFileInputRef.current.value = '';
   };
 
   const remaining = (() => {
@@ -143,22 +247,75 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
     return total - paid;
   })();
 
+  useEffect(() => {
+    if (form.paymentPlan === 'INSTALLMENT' && remaining > 0 && form.installmentMonths && form.firstEmiDate) {
+      const months = parseInt(form.installmentMonths, 10);
+      if (months > 0) {
+        const schedule = [];
+        const baseAmount = Math.floor(remaining / months);
+        let currentRemaining = remaining;
+        
+        const [year, month, day] = form.firstEmiDate.split('-').map(Number);
+        
+        for (let i = 1; i <= months; i++) {
+          let amount = baseAmount;
+          if (i === months) {
+            amount = currentRemaining;
+          }
+          currentRemaining -= amount;
+          
+          const dueDate = new Date(year, month - 1 + (i - 1), day);
+          
+          schedule.push({
+            installmentNumber: i,
+            dueDate: dueDate.toISOString(),
+            amount: amount
+          });
+        }
+        
+        setForm(f => {
+          if (JSON.stringify(f.emiSchedule) !== JSON.stringify(schedule)) {
+            return { ...f, emiSchedule: schedule };
+          }
+          return f;
+        });
+      }
+    } else if (form.emiSchedule.length > 0 && form.paymentPlan !== 'INSTALLMENT') {
+      setForm(f => ({ ...f, emiSchedule: [] }));
+    }
+  }, [form.paymentPlan, form.totalFees, form.advancePaid, form.installmentMonths, form.firstEmiDate, remaining]);
+
+  const handleIdNumberChange = (e) => {
+    let raw = e.target.value.replace(/[^A-Za-z0-9]/g, '');
+    let formatted = '';
+    for (let i = 0; i < raw.length; i++) {
+      if (i > 0 && i % 4 === 0) formatted += ' ';
+      formatted += raw[i];
+    }
+    set('idNumber', formatted);
+  };
+
   const handleReset = () => {
-    setForm({ ...EMPTY_FORM, enrollmentNo: generateEnrollmentNo() });
+    setForm({ ...EMPTY_FORM, enrollmentPrefix: generatePrefix(), manualEnrollmentNo: '' });
     setPhotoPreview(null);
+    setIdPreviews([]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (idFileInputRef.current) idFileInputRef.current.value = '';
     setQualSearch('');
   };
 
   const handleSubmit = () => {
+    if (isSubmitting) return;
     onSubmit({
+      ...form,
       name: form.fullName || 'Unnamed Student',
-      contact: form.contact,
       courses: [...form.selectedCourses, ...form.enrolledCourses],
-      batch: form.batchSlot,
-      enrollmentNo: form.enrollmentNo,
       paymentStatus: remaining <= 0 ? 'Full' : form.advancePaid ? 'Partial' : 'Pending',
-      totalFees: form.totalFees,
       paid: form.advancePaid,
+      paymentMode: form.paymentMode,
+      enrollmentNo: form.enrollmentPrefix + form.manualEnrollmentNo,
+      retainedIdDocumentPhotos: form.idDocumentPhotos.filter(p => typeof p === 'string'),
+      idDocumentPhotos: form.idDocumentPhotos.filter(p => typeof p !== 'string')
     });
   };
 
@@ -181,11 +338,15 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
           <AlertCircle size={13} className="text-[#E31C1C]" />
           ENROLLMENT NUMBER (EDITABLE ADMIN REFERENCE)
         </div>
-        <input
-          value={form.enrollmentNo}
-          onChange={e => set('enrollmentNo', e.target.value)}
-          className="bg-transparent border-none text-right text-sm font-black text-slate-800 focus:outline-none tracking-widest"
-        />
+        <div className="flex items-center text-sm font-black text-slate-800 tracking-widest gap-1 bg-[#FAFAF9] px-3 py-1.5 rounded-lg border border-[#E3E1DC]">
+          <span className="opacity-60 select-none border-r border-[#E3E1DC] pr-2 mr-1">{form.enrollmentPrefix}</span>
+          <input
+            value={form.manualEnrollmentNo}
+            onChange={(e) => set('manualEnrollmentNo', e.target.value.replace(/[^0-9]/g, ''))}
+            className="bg-transparent border-none text-left text-sm font-black text-slate-800 focus:outline-none tracking-widest w-24 p-0 m-0 placeholder-slate-300"
+            placeholder="7002"
+          />
+        </div>
       </div>
 
       {/* Two-column layout */}
@@ -200,7 +361,7 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
               Personal Information
             </div>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
               <div>
                 <label className={labelCls}>Full Name <span className="text-[#E31C1C]">*</span></label>
                 <input className={inputCls} placeholder="Enter student's full name" value={form.fullName} onChange={e => set('fullName', e.target.value)} />
@@ -208,10 +369,6 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
               <div>
                 <label className={labelCls}>Father's / Husband's Name <span className="text-[#E31C1C]">*</span></label>
                 <input className={inputCls} placeholder="Father's or husband's name" value={form.fatherHusbandName} onChange={e => set('fatherHusbandName', e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>Mother's Name</label>
-                <input className={inputCls} placeholder="Enter mother's name" value={form.motherName} onChange={e => set('motherName', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>Contact Number <span className="text-[#E31C1C]">*</span></label>
@@ -222,11 +379,33 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
                 <p className="text-[10px] text-slate-400 mt-1 font-semibold">Without country prefix (e.g. 09876543210)</p>
               </div>
               <div>
+                <label className={labelCls}>Alternate Number</label>
+                <div className="relative">
+                  <Phone size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input className={`${inputCls} pl-8`} placeholder="10-digit mobile number" maxLength={10} value={form.alternateNumber} onChange={e => set('alternateNumber', e.target.value.replace(/\D/, ''))} />
+                </div>
+              </div>
+              <div>
                 <label className={labelCls}>Email Address</label>
                 <div className="relative">
                   <Mail size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input className={`${inputCls} pl-8`} placeholder="student@example.com" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
                 </div>
+              </div>
+              <div>
+                <label className={labelCls}>Centre Reference</label>
+                <select className={inputCls} value={form.centreReference} onChange={e => set('centreReference', e.target.value)}>
+                  <option value="">Select Centre Reference</option>
+                  <option value="Google">Google</option>
+                  <option value="Site">Site</option>
+                  <option value="AI">AI</option>
+                  <option value="Friend">Friend</option>
+                  <option value="Old Student">Old Student</option>
+                  <option value="Company">Company</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="YouTube">YouTube</option>
+                  <option value="Family">Family</option>
+                </select>
               </div>
               <div>
                 <DatePicker
@@ -292,58 +471,201 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
             </div>
           </div>
 
-          {/* Course Preferences */}
-          <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 shadow-sm">
-            <div className={sectionHeaderCls}>
-              <BookOpen size={15} className="text-[#E31C1C]" />
-              Course Preferences
-            </div>
-            <div>
-              <label className={`${labelCls} mb-3`}>Learning Mode Preference <span className="text-[#E31C1C]">*</span></label>
-              <div className="flex gap-3 px-5 py-2 border border-[#E3E1DC] rounded-xl overflow-hidden">
-                {['Offline', 'Online', 'Hybrid'].map(mode => (
-                  <button
-                    key={mode}
-                    onClick={() => set('learningMode', mode)}
-                    className={`py-2 rounded-md px-2 text-xs font-black tracking-wider transition-all ${
-                      form.learningMode === mode
-                        ? 'bg-[#E31C1C] text-white'
-                        : 'bg-white text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    {mode}
-                  </button>
-                ))}
+            <div className="flex flex-col xl:flex-row gap-5 items-start">
+              <div className="flex-1 space-y-5 min-w-0">
+                {/* Course Preferences */}
+                <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 shadow-sm">
+                  <div className={sectionHeaderCls}>
+                    <BookOpen size={15} className="text-[#E31C1C]" />
+                    Course Preferences
+                  </div>
+                  <div>
+                    <label className={`${labelCls} mb-3`}>Learning Mode Preference <span className="text-[#E31C1C]">*</span></label>
+                    <div className="flex gap-3 px-5 py-2 border border-[#E3E1DC] rounded-xl overflow-hidden">
+                      {['Offline', 'Online', 'Hybrid'].map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => set('learningMode', mode)}
+                          className={`py-2 rounded-md px-2 text-xs font-black tracking-wider transition-all ${
+                            form.learningMode === mode
+                              ? 'bg-[#E31C1C] text-white'
+                              : 'bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Identity Details */}
+                <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 shadow-sm">
+                  <div className={sectionHeaderCls}>
+                    <ShieldCheck size={15} className="text-[#E31C1C]" />
+                    Identity Details
+                  </div>
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-wrap gap-4">
+                      <div className="flex-1 min-w-[200px]">
+                        <label className={labelCls}>Legal ID Document Type</label>
+                        <select className={inputCls} value={form.idType} onChange={e => set('idType', e.target.value)}>
+                          <option value="">Select ID Type</option>
+                          {ID_TYPES.map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <label className={labelCls}>ID Document Number</label>
+                        <input
+                          className={`${inputCls} ${!form.idType ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          placeholder={form.idType ? `Enter ${form.idType} number` : 'Select ID Type first'}
+                          disabled={!form.idType}
+                          value={form.idNumber}
+                          onChange={handleIdNumberChange}
+                        />
+                      </div>
+                    </div>
+                
+                    {/* ID Document Photo Upload */}
+                    <div>
+                      <label className={labelCls}>ID Document Photo (Multiple Allowed)</label>
+                      <div className="mt-2 bg-[#FAFAF9] border border-[#E3E1DC] rounded-xl p-4 flex flex-col gap-4">
+                        {idPreviews.length > 0 && (
+                          <div className="flex flex-wrap gap-4 w-full">
+                            {idPreviews.map((previewUrl, idx) => (
+                              <div key={idx} className="flex flex-col items-center gap-2">
+                                <img src={previewUrl} alt={`ID Document ${idx + 1}`} className="w-16 h-16 object-cover rounded-lg border border-[#E3E1DC]" />
+                                <button type="button" onClick={() => removeIdPhoto(idx)} className="text-[10px] font-black text-[#E31C1C] hover:text-red-700 bg-red-50 px-3 py-1.5 rounded-md transition-colors w-full">Remove</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className={`flex items-center justify-between w-full ${idPreviews.length > 0 ? 'pt-3 border-t border-[#E3E1DC]' : ''}`}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-rose-50 text-[#E31C1C] rounded-full flex items-center justify-center">
+                              <Upload size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-black text-slate-700">Upload ID Photos</p>
+                              <p className="text-[10px] font-semibold text-slate-400">{idPreviews.length > 0 ? "Add more files" : "Capture or select files"}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => idFileInputRef.current?.click()}
+                            className="bg-white border border-[#E3E1DC] text-slate-700 text-[11px] font-black px-4 py-2 rounded-lg hover:border-slate-300 transition-colors shadow-sm"
+                          >
+                            Upload / Camera
+                          </button>
+                        </div>
+                        <input
+                          type="file"
+                          multiple
+                          ref={idFileInputRef}
+                          className="hidden"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={e => handleIdDocumentFiles(e.target.files)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 space-y-5 min-w-0">
+                {/* Payment Details */}
+                <div className="bg-white border border-[#E8E6E1] rounded-2xl p-5 shadow-sm">
+                  <div className={sectionHeaderCls}>
+                    <CreditCard size={15} className="text-[#E31C1C]" />
+                    Payment Details
+                  </div>
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    <div>
+                      <label className={labelCls}>Total Course Fees (₹) <span className="text-[#E31C1C]">*</span></label>
+                      <input className={inputCls} placeholder="Enter total tuition fee" type="number" value={form.totalFees} onChange={e => set('totalFees', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Advance Paid Deposit (₹)</label>
+                      <input className={inputCls} placeholder="Tuition deposit paid" type="number" value={form.advancePaid} onChange={e => set('advancePaid', e.target.value)} />
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                      <label className={labelCls}>Payment Mode</label>
+                      <select className={inputCls} value={form.paymentMode} onChange={e => set('paymentMode', e.target.value)}>
+                        {PAYMENT_MODES.map(mode => (
+                          <option key={mode} value={mode}>{mode}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                      <label className={labelCls}>Payment Plan</label>
+                      <select className={inputCls} value={form.paymentPlan} onChange={e => set('paymentPlan', e.target.value)}>
+                        <option value="ONE_TIME">One Time</option>
+                        <option value="INSTALLMENT">Installment</option>
+                      </select>
+                    </div>
+                  </div>
+                
+                  {form.paymentPlan === 'INSTALLMENT' && (
+                    <div className="flex flex-wrap gap-3 mb-4 p-4 border border-[#E3E1DC] bg-slate-50/50 rounded-xl">
+                      <div className="flex-1 min-w-[150px]">
+                        <label className={labelCls}>Installment Duration</label>
+                        <select className={inputCls} value={form.installmentMonths} onChange={e => set('installmentMonths', e.target.value)}>
+                          <option value="">Select duration...</option>
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map(num => (
+                            <option key={num} value={num}>{num} Month{num > 1 ? 's' : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[150px]">
+                        <DatePicker
+                          label="First EMI Date"
+                          value={form.firstEmiDate}
+                          onChange={val => set('firstEmiDate', val)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                
+                  {/* Remaining Balance */}
+                  <div className="bg-[#FAFAF9] border border-[#E3E1DC] rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Calculated Remaining Fees Balance</span>
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${remaining > 0 ? 'text-[#E31C1C]' : 'text-emerald-600'}`}>
+                        {remaining > 0 ? 'Pending Amount' : remaining === 0 && form.totalFees ? 'Fully Paid' : ''}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-[#E31C1C] text-lg font-black">₹{remaining >= 0 ? remaining.toLocaleString('en-IN') : 0}</span>
+                      <span className="text-xs font-bold text-slate-400">INR</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1 font-semibold">This outstanding balance will update automatically upon modifying either total fees or tuition deposit.</p>
+                  </div>
+                
+                  {form.paymentPlan === 'INSTALLMENT' && form.emiSchedule.length > 0 && (
+                    <div className="mt-4 bg-white border border-[#E3E1DC] rounded-xl p-4">
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-3">Installment Schedule Preview</div>
+                      <div className="space-y-2">
+                        {form.emiSchedule.map((emi, i) => {
+                          const dateObj = new Date(emi.dueDate);
+                          const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
+                          return (
+                            <div key={i} className="flex justify-between items-center text-xs font-semibold text-slate-600 border-b border-[#F4F4F4] pb-2 last:border-0 last:pb-0">
+                              <span>{i + 1}. {formattedDate}</span>
+                              <span className="font-bold text-slate-800">₹{emi.amount.toLocaleString('en-IN')}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-[#E3E1DC] flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-500">Total Installments: {form.emiSchedule.length}</span>
+                        <span className="font-black text-[#E31C1C]">Total Installment Amount: ₹{form.emiSchedule.reduce((sum, emi) => sum + emi.amount, 0).toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Identity Details */}
-          <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 shadow-sm">
-            <div className={sectionHeaderCls}>
-              <ShieldCheck size={15} className="text-[#E31C1C]" />
-              Identity Details
-            </div>
-            <div className="flex flex-wrap gap-4">
-              <div>
-                <label className={labelCls}>Legal ID Document Type</label>
-                <select className={inputCls} value={form.idType} onChange={e => set('idType', e.target.value)}>
-                  <option value="">Select ID Type</option>
-                  {ID_TYPES.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>ID Document Number</label>
-                <input
-                  className={`${inputCls} ${!form.idType ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  placeholder={form.idType ? `Enter ${form.idType} number` : 'Select ID Type first'}
-                  disabled={!form.idType}
-                  value={form.idNumber}
-                  onChange={e => set('idNumber', e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* ── RIGHT COLUMN ─────────────────────────────── */}
@@ -365,7 +687,13 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
               onClick={() => fileInputRef.current?.click()}
             >
               {photoPreview ? (
-                <img src={photoPreview} alt="Preview" className="w-28 h-28 object-cover rounded-xl border border-[#E3E1DC]" />
+                <div className="flex flex-col items-center gap-3 w-full">
+                  <img src={photoPreview} alt="Preview" className="w-28 h-28 object-cover rounded-xl border border-[#E3E1DC]" />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="text-[10px] font-black text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-md transition-colors">Replace</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); removePhoto(); }} className="text-[10px] font-black text-[#E31C1C] hover:text-red-700 bg-red-50 px-3 py-1.5 rounded-md transition-colors">Remove</button>
+                  </div>
+                </div>
               ) : (
                 <>
                   <Upload size={24} className="text-[#E31C1C]" />
@@ -379,11 +707,11 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
                     className="bg-[#E31C1C] text-white text-[11px] font-black px-5 py-2 rounded-lg hover:bg-[#c01919] transition-colors"
                     onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
                   >
-                    Browse Computer
+                    Browse / Camera
                   </button>
                 </>
               )}
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => handlePhotoFile(e.target.files[0])} />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="user" onChange={e => handlePhotoFile(e.target.files[0])} />
             </div>
           </div>
 
@@ -458,38 +786,7 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
             </div>
           </div>
 
-          {/* Payment Details */}
-          <div className="bg-white border border-[#E8E6E1] rounded-2xl p-5 shadow-sm">
-            <div className={sectionHeaderCls}>
-              <CreditCard size={15} className="text-[#E31C1C]" />
-              Payment Details
-            </div>
-            <div className="flex flex-wrap gap-3 mb-4">
-              <div>
-                <label className={labelCls}>Total Course Fees (₹) <span className="text-[#E31C1C]">*</span></label>
-                <input className={inputCls} placeholder="Enter total tuition fee" type="number" value={form.totalFees} onChange={e => set('totalFees', e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>Advance Paid Deposit (₹)</label>
-                <input className={inputCls} placeholder="Tuition deposit paid" type="number" value={form.advancePaid} onChange={e => set('advancePaid', e.target.value)} />
-              </div>
-            </div>
 
-            {/* Remaining Balance */}
-            <div className="bg-[#FAFAF9] border border-[#E3E1DC] rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Calculated Remaining Fees Balance</span>
-                <span className={`text-[10px] font-black uppercase tracking-wider ${remaining > 0 ? 'text-[#E31C1C]' : 'text-emerald-600'}`}>
-                  {remaining > 0 ? 'Pending Amount' : remaining === 0 && form.totalFees ? 'Fully Paid' : ''}
-                </span>
-              </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-[#E31C1C] text-lg font-black">₹{remaining >= 0 ? remaining.toLocaleString('en-IN') : 0}</span>
-                <span className="text-xs font-bold text-slate-400">INR</span>
-              </div>
-              <p className="text-[10px] text-slate-400 mt-1 font-semibold">This outstanding balance will update automatically upon modifying either total fees or tuition deposit.</p>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -525,25 +822,34 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel }) {
           {editingStudent ? (
             <button
               onClick={handleSubmit}
-              className="flex items-center gap-2 bg-[#E31C1C] hover:bg-[#c01919] text-white text-xs font-black px-6 py-2.5 rounded-xl transition-colors cursor-pointer shadow-sm"
+              disabled={isSubmitting}
+              className={`flex items-center gap-2 text-white text-xs font-black px-6 py-2.5 rounded-xl transition-colors shadow-sm ${
+                isSubmitting ? 'bg-[#c01919] opacity-70 cursor-not-allowed' : 'bg-[#E31C1C] hover:bg-[#c01919] cursor-pointer'
+              }`}
             >
               <Save size={14} />
-              Save Changes
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </button>
           ) : (
             <>
               <button
-                className="flex items-center gap-2 border border-[#E3E1DC] text-xs font-black text-slate-700 px-5 py-2.5 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+                disabled={isSubmitting}
+                className={`flex items-center gap-2 border border-[#E3E1DC] text-xs font-black text-slate-700 px-5 py-2.5 rounded-xl transition-colors ${
+                  isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 cursor-pointer'
+                }`}
               >
                 <Save size={14} />
                 Save Draft
               </button>
               <button
                 onClick={handleSubmit}
-                className="flex items-center gap-2 bg-[#E31C1C] hover:bg-[#c01919] text-white text-xs font-black px-6 py-2.5 rounded-xl transition-colors cursor-pointer shadow-sm"
+                disabled={isSubmitting}
+                className={`flex items-center gap-2 text-white text-xs font-black px-6 py-2.5 rounded-xl transition-colors shadow-sm ${
+                  isSubmitting ? 'bg-[#c01919] opacity-70 cursor-not-allowed' : 'bg-[#E31C1C] hover:bg-[#c01919] cursor-pointer'
+                }`}
               >
                 <Send size={14} />
-                Submit Admission
+                {isSubmitting ? 'Submitting...' : 'Submit Admission'}
               </button>
             </>
           )}

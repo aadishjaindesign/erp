@@ -8,56 +8,22 @@ const STATUS_COLORS = {
 };
 
 function CourseCell({ courses }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const visible = courses.slice(0, 2);
-  const hidden = courses.slice(2);
-
-  useEffect(() => {
-    if (!open) return;
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
   if (!courses || courses.length === 0) {
     return <span className="text-[10px] text-slate-400 font-semibold">—</span>;
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5 relative" ref={ref}>
-      {visible.map(c => (
-        <span key={c} className="text-[10px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+    <div className="flex flex-wrap gap-1.5 min-w-0">
+      {courses.map(c => (
+        <span key={c} className="text-[10px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md break-words whitespace-normal leading-tight text-center max-w-full">
           {c}
         </span>
       ))}
-      {hidden.length > 0 && (
-        <button
-          onClick={() => setOpen(o => !o)}
-          className="text-[10px] font-black bg-rose-50 text-[#E31C1C] border border-rose-200 px-2 py-0.5 rounded-md hover:bg-[#E31C1C] hover:text-white transition-colors cursor-pointer"
-        >
-          +{hidden.length}
-        </button>
-      )}
-      {open && (
-        <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-[#E3E1DC] rounded-xl shadow-xl p-3 min-w-[180px]">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">All Courses</p>
-          <div className="flex flex-wrap gap-1.5">
-            {courses.map(c => (
-              <span key={c} className="text-[10px] font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md whitespace-nowrap">
-                {c}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-export default function RegisteredStudents({ students, onEdit }) {
+export default function RegisteredStudents({ students, onEdit, onAddStudent }) {
   if (students.length === 0) {
     return (
       <div className="bg-white border border-[#E8E6E1] rounded-2xl p-16 text-center shadow-sm">
@@ -65,7 +31,15 @@ export default function RegisteredStudents({ students, onEdit }) {
           <User size={28} className="text-slate-400" />
         </div>
         <h3 className="text-sm font-black text-slate-700 mb-1">No Students Registered</h3>
-        <p className="text-xs text-slate-400 font-semibold">Students submitted via the Admission Form will appear here.</p>
+        <p className="text-xs text-slate-400 font-semibold mb-6">Students submitted via the Admission Form will appear here.</p>
+        {onAddStudent && (
+          <button
+            onClick={onAddStudent}
+            className="bg-[#E31C1C] text-white text-[11px] font-black px-6 py-2.5 rounded-xl hover:bg-[#c01919] transition-colors shadow-sm"
+          >
+            Add New Student
+          </button>
+        )}
       </div>
     );
   }
@@ -73,12 +47,11 @@ export default function RegisteredStudents({ students, onEdit }) {
   return (
     <div className="bg-white border border-[#E8E6E1] rounded-2xl shadow-sm overflow-hidden">
       {/* Table Header */}
-      <div className="grid grid-cols-[2fr_1.2fr_2fr_1.5fr_1.4fr_1.2fr_80px] gap-4 px-6 py-3.5 bg-[#FAFAF9] border-b border-[#E8E6E1]">
+      <div className="grid grid-cols-[2fr_1.2fr_2fr_1.4fr_1.2fr_80px] gap-4 px-6 py-3.5 bg-[#FAFAF9] border-b border-[#E8E6E1]">
         {[
           { icon: User, label: 'Student Name' },
           { icon: Phone, label: 'Contact' },
           { icon: BookOpen, label: 'Courses' },
-          { icon: Clock, label: 'Batch Timing' },
           { icon: Hash, label: 'Enrollment No.' },
           { icon: CreditCard, label: 'Payment' },
           { icon: null, label: 'Actions' },
@@ -95,24 +68,31 @@ export default function RegisteredStudents({ students, onEdit }) {
         {students.map((student) => (
           <div
             key={student.id}
-            className="grid grid-cols-[2fr_1.2fr_2fr_1.5fr_1.4fr_1.2fr_80px] gap-4 px-6 py-4 hover:bg-[#FAFAF9] transition-colors group items-center"
+            className="grid grid-cols-[2fr_1.2fr_2fr_1.4fr_1.2fr_80px] gap-4 px-6 py-4 hover:bg-[#FAFAF9] transition-colors group items-center"
           >
             {/* Name */}
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-full bg-[#E31C1C] text-white font-black text-xs flex items-center justify-center shrink-0">
                 {student.name?.charAt(0)?.toUpperCase() || '?'}
               </div>
-              <span className="text-xs font-black text-slate-800 truncate">{student.name}</span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-black text-slate-800 truncate">{student.name}</span>
+                {student.centreReference && (
+                  <span className="text-[10px] text-slate-400 truncate font-semibold mt-0.5">Ref: {student.centreReference}</span>
+                )}
+              </div>
             </div>
 
             {/* Contact */}
-            <div className="text-xs font-semibold text-slate-600 truncate">{student.contact || '—'}</div>
+            <div className="flex flex-col min-w-0">
+              <div className="text-xs font-semibold text-slate-600 truncate">{student.contact || '—'}</div>
+              {student.alternateNumber && (
+                <div className="text-[10px] text-slate-400 truncate mt-0.5">{student.alternateNumber}</div>
+              )}
+            </div>
 
             {/* Courses */}
             <CourseCell courses={student.courses || []} />
-
-            {/* Batch */}
-            <div className="text-[11px] font-semibold text-slate-600 truncate">{student.batch || '—'}</div>
 
             {/* Enrollment No */}
             <div className="text-[11px] font-black text-slate-700 tracking-wider">{student.enrollmentNo}</div>
@@ -139,10 +119,18 @@ export default function RegisteredStudents({ students, onEdit }) {
       </div>
 
       {/* Footer */}
-      <div className="px-6 py-3 bg-[#FAFAF9] border-t border-[#E8E6E1]">
+      <div className="px-6 py-3 bg-[#FAFAF9] border-t border-[#E8E6E1] flex items-center justify-between">
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
           {students.length} student{students.length !== 1 ? 's' : ''} registered
         </span>
+        {onAddStudent && (
+          <button
+            onClick={onAddStudent}
+            className="text-[10px] font-black bg-white border border-[#E3E1DC] text-slate-600 px-4 py-2 rounded-lg hover:border-slate-300 transition-colors shadow-sm"
+          >
+            + Add Student
+          </button>
+        )}
       </div>
     </div>
   );

@@ -322,7 +322,8 @@ exports.checkOutEmployee = async (req, res, next) => {
 // @access  Private (Admin only)
 exports.getDailyAttendanceSummary = async (req, res, next) => {
   try {
-    const { start: todayStart, end: todayEnd } = getIstTodayBoundaries();
+    const { date } = req.query;
+    const { start: todayStart, end: todayEnd } = getIstTodayBoundaries(date ? new Date(date) : undefined);
 
     const Holiday = require('../../models/Holiday');
     const Leave = require('../../models/Leave');

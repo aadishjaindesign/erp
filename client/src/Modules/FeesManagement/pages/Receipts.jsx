@@ -351,7 +351,7 @@ const Receipts = () => {
 
               {/* Items details table */}
               <div className="border border-slate-150 rounded-2xl overflow-hidden text-xs">
-                <table className="w-full text-left border-collapse">
+                <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">
                       <th className="px-4 py-3">Fee Particular description</th>
@@ -366,7 +366,7 @@ const Receipts = () => {
                       <td className="px-4 py-3 text-right font-extrabold text-slate-800">{formatINR(activeReceipt.amount)}</td>
                     </tr>
                   </tbody>
-                </table>
+                </table></div>
               </div>
 
               {/* Terms and Sign block */}

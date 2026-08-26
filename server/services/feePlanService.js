@@ -47,7 +47,14 @@ class FeePlanService {
         ? planData.installments.length
         : parseInt(numberOfInstallments);
       finalPlan.numberOfInstallments = numInstallments;
-      finalPlan.installmentAmount = Math.round(totalFees / numInstallments);
+      
+      const advanceAmt = planData.advanceAmount || 0;
+      if (advanceAmt > 0 && advanceAmt < totalFees && numInstallments > 1) {
+          finalPlan.installmentAmount = Math.round((totalFees - advanceAmt) / (numInstallments - 1));
+      } else {
+          finalPlan.installmentAmount = Math.round(totalFees / numInstallments);
+      }
+      
       finalPlan.remainingAmount = totalFees;
       finalPlan.firstDueDate = new Date(firstDueDate);
     }
@@ -64,7 +71,7 @@ class FeePlanService {
       if (planData.installments && planData.installments.length > 0) {
         createdInstallments = await installmentService.saveCustomInstallments(newPlan, planData.installments, creatorId);
       } else {
-        createdInstallments = await installmentService.generateInstallments(newPlan, creatorId);
+        createdInstallments = await installmentService.generateInstallments(newPlan, creatorId, planData.advanceAmount || 0);
       }
       
       // Create invoice for each installment

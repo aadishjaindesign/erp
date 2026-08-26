@@ -148,7 +148,7 @@ const Navbar = () => {
   };
 
   return (
-    <header className="bg-white/90 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200 px-10 py-10 flex items-center justify-between gap-4 h-14 shrink-0 shadow-sm shadow-slate-100/40">
+    <header className="bg-white/90 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200 px-4 md:px-10 flex items-center justify-between gap-4 h-14 shrink-0 shadow-sm shadow-slate-100/40">
       {/* Brand */}
       <div className="flex items-center gap-3">
         <Link to={ROUTES.DASHBOARD} className="flex items-center gap-2 hover:opacity-90 transition-opacity">
@@ -182,7 +182,7 @@ const Navbar = () => {
 
           {/* Global ERP Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-3 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl p-3.5 space-y-2.5 max-h-[420px] overflow-y-auto z-50 animate-fade-in flex flex-col">
+            <div className="absolute -right-2 sm:right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-xl p-3.5 space-y-2.5 max-h-[420px] overflow-y-auto z-50 animate-fade-in flex flex-col max-w-[340px]">
               <div className="flex justify-between items-center pb-2 border-b border-slate-100 shrink-0">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">ERP Alert Inbox</span>

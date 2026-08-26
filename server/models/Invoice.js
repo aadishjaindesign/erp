@@ -81,12 +81,13 @@ InvoiceSchema.virtual('installment', {
 // Pre-save middleware to auto-generate sequential invoiceNumber (collision-free)
 InvoiceSchema.pre('save', async function () {
   if (!this.invoiceNumber) {
-    const currentYear = new Date().getFullYear();
-    
+    const currentYearFull = new Date().getFullYear();
+    const currentYear = currentYearFull.toString().slice(-2);
+
     // Fetch dynamic prefix from settings
     const Settings = mongoose.model('Settings');
-    const settingsDoc = await Settings.findOne({}) || { fee: { invoicePrefix: 'INV' } };
-    const invoicePrefix = settingsDoc.fee?.invoicePrefix || 'INV';
+    const settingsDoc = await Settings.findOne({}) || { fee: { invoicePrefix: 'JC' } };
+    const invoicePrefix = settingsDoc.fee?.invoicePrefix || 'JC';
     const prefix = `${invoicePrefix}-${currentYear}-`;
     
     // Find or seed counter
@@ -120,7 +121,7 @@ InvoiceSchema.pre('save', async function () {
       { returnDocument: 'after', new: true }
     );
     
-    const padded = String(counter.value).padStart(6, '0');
+    const padded = String(counter.value).padStart(4, '0');
     this.invoiceNumber = `${prefix}${padded}`;
   }
 });

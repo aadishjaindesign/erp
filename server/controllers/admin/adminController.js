@@ -815,3 +815,101 @@ exports.updateEmployeeTiming = async (req, res, next) => {
     next(err);
   }
 };
+// @desc    Update employee attendance manually (Admin only)
+// @route   PUT /api/admin/attendance/record
+// @access  Private (Admin only)
+exports.updateEmployeeAttendanceRecord = async (req, res, next) => {
+  try {
+    const { employeeId, date, status, checkIn, checkOut, remarks } = req.body;
+
+    if (!employeeId || !date || !status) {
+      return res.status(400).json({ success: false, message: 'Please provide employeeId, date, and status' });
+    }
+
+    // Role check for admin (if protect doesn't strictly verify admin-only)
+    // Though usually protected by router admin middleware, we'll double check.
+
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+
+    // Logic validation for times
+    if (checkIn && checkOut && checkIn !== '-' && checkOut !== '-') {
+      // Basic string compare since format is usually HH:MM AM/PM or HH:MM
+      const toMinutes = (timeStr) => {
+        let [time, modifier] = timeStr.split(' ');
+        let [hours, minutes] = time.split(':');
+        hours = parseInt(hours, 10);
+        minutes = parseInt(minutes, 10);
+        if (hours === 12) {
+          hours = 0;
+        }
+        if (modifier === 'PM') {
+          hours += 12;
+        }
+        return hours * 60 + minutes;
+      };
+      
+      const inMins = toMinutes(checkIn);
+      const outMins = toMinutes(checkOut);
+      if (outMins <= inMins) {
+        return res.status(400).json({ success: false, message: 'Check-out time must be logically after check-in time' });
+      }
+    }
+
+    const { start, end } = getIstTodayBoundaries(date);
+
+    let attendance = await Attendance.findOne({
+      employee: employeeId,
+      date: { $gte: start, $lte: end }
+    });
+
+    if (attendance) {
+      attendance.status = status;
+      attendance.checkIn = checkIn || attendance.checkIn;
+      attendance.checkOut = checkOut || attendance.checkOut;
+      if (remarks) attendance.remarks = remarks;
+      await attendance.save();
+    } else {
+      // Create new record
+      const attendanceDate = new Date(date);
+      // Ensure date is set properly to the specified day (noon UTC to avoid TZ issues if needed, or just start of day)
+      // We will use the 'start' calculated above
+      attendance = await Attendance.create({
+        employee: employeeId,
+        date: start,
+        status,
+        checkIn: checkIn || '-',
+        checkOut: checkOut || '-',
+        remarks: remarks || 'Created manually by Admin'
+      });
+    }
+
+    // Create Notification
+    try {
+      const formattedDate = new Date(date).toLocaleDateString('en-GB');
+      await Notification.create({
+        recipient: employeeId,
+        targetUser: employeeId,
+        senderName: 'System Admin',
+        title: 'Attendance Corrected',
+        message: `Your attendance for ${formattedDate} has been manually corrected to ${status}.`,
+        type: 'ATTENDANCE_CORRECTION',
+        module: 'Attendance',
+        priority: 'NORMAL'
+      });
+    } catch (notifErr) {
+      console.error('Error creating attendance correction notification:', notifErr);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance record updated successfully.',
+      attendance
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};

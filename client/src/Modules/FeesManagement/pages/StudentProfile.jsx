@@ -272,37 +272,92 @@ const StudentProfile = ({ studentId, onNavigate }) => {
             </h4>
             
             <div className="space-y-3.5 text-xs font-semibold text-slate-655">
-              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6]">
-                <span className="text-slate-400">Full Name</span>
-                <span className="text-slate-800">{studentProfile.fullName}</span>
+              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6] gap-4">
+                <span className="text-slate-400 whitespace-nowrap">Full Name</span>
+                <span className="text-slate-800 text-right">{studentProfile.fullName}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6]">
-                <span className="text-slate-400">Student ID</span>
-                <span className="text-slate-800 font-mono">{studentProfile.studentId}</span>
+              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6] gap-4">
+                <span className="text-slate-400 whitespace-nowrap">Student ID</span>
+                <span className="text-slate-800 font-mono text-right">{studentProfile.studentId}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6]">
-                <span className="text-slate-400">Course Class</span>
-                <span className="text-slate-800">{studentProfile.course}</span>
+              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6] gap-4">
+                <span className="text-slate-400 whitespace-nowrap">ID Card Number</span>
+                <span className="text-slate-800 font-mono text-right">{studentProfile.idNumber || '-'}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6]">
-                <span className="text-slate-400">Contact Number</span>
-                <span className="text-slate-850">{studentProfile.mobile}</span>
+              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6] gap-4">
+                <span className="text-slate-400 whitespace-nowrap">Course Class</span>
+                <span className="text-slate-800 text-right break-words">{studentProfile.course}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6]">
-                <span className="text-slate-400">Email Address</span>
-                <span className="text-slate-850 font-normal">{studentProfile.email}</span>
+              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6] gap-4">
+                <span className="text-slate-400 whitespace-nowrap">Contact Number</span>
+                <span className="text-slate-850 text-right">{studentProfile.mobile}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6]">
-                <span className="text-slate-400">Father's Name</span>
-                <span className="text-slate-800">{studentProfile.fatherName || '-'}</span>
+              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6] gap-4">
+                <span className="text-slate-400 whitespace-nowrap">Email Address</span>
+                <span className="text-slate-850 font-normal text-right break-all">{studentProfile.email}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6]">
-                <span className="text-slate-400">Residential Address</span>
+              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6] gap-4">
+                <span className="text-slate-400 whitespace-nowrap">Father's Name</span>
+                <span className="text-slate-800 text-right">{studentProfile.fatherName || '-'}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-[#FAF9F6] gap-4">
+                <span className="text-slate-400 whitespace-nowrap">Residential Address</span>
                 <span className="text-slate-800 text-right max-w-[150px] truncate">{studentProfile.address || '-'}</span>
               </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-400">Status</span>
+              <div className="flex justify-between py-1.5 gap-4">
+                <span className="text-slate-400 whitespace-nowrap">Status</span>
                 <StatusBadge status={studentProfile.status} />
+              </div>
+            </div>
+          </div>
+
+          {/* Documents Card */}
+          <div className="bg-white border border-[#EBEAE6] rounded-2xl p-5 shadow-sm space-y-4">
+            <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider pb-2 border-b border-[#FAF9F6] flex items-center gap-1.5">
+              <FileText size={14} className="text-blue-500" />
+              <span>Student Documents</span>
+            </h4>
+            
+            <div className="space-y-4 text-xs font-semibold text-slate-655">
+              <div>
+                <span className="text-slate-400 block mb-2">Student Photograph</span>
+                {studentProfile.studentPhotograph ? (
+                  <img 
+                    src={studentProfile.studentPhotograph.startsWith('http') ? studentProfile.studentPhotograph : `${import.meta.env.VITE_API_URL || ''}${studentProfile.studentPhotograph}`} 
+                    alt="Student" 
+                    className="w-24 h-24 object-cover rounded-xl border border-[#EBEAE6]" 
+                  />
+                ) : (
+                  <div className="w-24 h-24 bg-[#FAF9F6] rounded-xl flex items-center justify-center border border-[#EBEAE6] text-slate-400">
+                    No Photo
+                  </div>
+                )}
+              </div>
+              
+              <div className="pt-2 border-t border-[#FAF9F6]">
+                <span className="text-slate-400 block mb-2">ID Document Photos</span>
+                {(studentProfile.idDocumentPhotos && studentProfile.idDocumentPhotos.length > 0) ? (
+                  <div className="flex flex-wrap gap-3">
+                    {studentProfile.idDocumentPhotos.map((photo, idx) => (
+                      <img 
+                        key={idx}
+                        src={photo.startsWith('http') ? photo : `${import.meta.env.VITE_API_URL || ''}${photo}`} 
+                        alt={`ID Document ${idx + 1}`} 
+                        className="max-w-[200px] max-h-[150px] object-cover rounded-xl border border-[#EBEAE6]" 
+                      />
+                    ))}
+                  </div>
+                ) : studentProfile.idDocumentImage ? (
+                  <img 
+                    src={studentProfile.idDocumentImage.startsWith('http') ? studentProfile.idDocumentImage : `${import.meta.env.VITE_API_URL || ''}${studentProfile.idDocumentImage}`} 
+                    alt="ID Document" 
+                    className="max-w-[200px] max-h-[150px] object-cover rounded-xl border border-[#EBEAE6]" 
+                  />
+                ) : (
+                  <div className="max-w-[200px] h-20 bg-[#FAF9F6] rounded-xl flex items-center justify-center border border-[#EBEAE6] text-slate-400 px-4 text-center">
+                    No ID Document Available
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -320,7 +375,7 @@ const StudentProfile = ({ studentId, onNavigate }) => {
 
             {planLoading ? <Loader inline message="Syncing installment logs..." /> : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
+                <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
                   <thead>
                     <tr className="border-b border-[#EBEAE6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                       <th className="pb-3">Inst No</th>
@@ -366,7 +421,7 @@ const StudentProfile = ({ studentId, onNavigate }) => {
                       </tr>
                     )}
                   </tbody>
-                </table>
+                </table></div>
               </div>
             )}
           </div>
@@ -380,7 +435,7 @@ const StudentProfile = ({ studentId, onNavigate }) => {
 
             {paymentsLoading ? <Loader inline message="Syncing ledger registry..." /> : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
+                <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
                   <thead>
                     <tr className="border-b border-[#EBEAE6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                       <th className="pb-3">Transaction ID</th>
@@ -415,7 +470,7 @@ const StudentProfile = ({ studentId, onNavigate }) => {
                       </tr>
                     )}
                   </tbody>
-                </table>
+                </table></div>
               </div>
             )}
           </div>

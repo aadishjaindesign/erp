@@ -16,8 +16,9 @@ export const adminAttendanceApi = {
     return data;
   },
 
-  getDailySummary: async () => {
-    const { data } = await axiosInstance.get('/attendance/summary');
+  getDailySummary: async (date) => {
+    const params = date ? { date } : {};
+    const { data } = await axiosInstance.get('/attendance/summary', { params });
     return data;
   },
 
@@ -90,6 +91,11 @@ export const adminAttendanceApi = {
 
   updateAttendanceSettings: async (settingsData) => {
     const { data } = await axiosInstance.put('/admin/attendance/settings', settingsData);
+    return data;
+  },
+
+  updateAttendanceRecord: async (recordData) => {
+    const { data } = await axiosInstance.put('/admin/attendance/record', recordData);
     return data;
   },
 

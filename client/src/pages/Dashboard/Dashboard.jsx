@@ -137,7 +137,7 @@ export default function Dashboard() {
   return (
     <div className="bg-white text-slate-800 font-sans w-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2">
             Welcome Back, Aadish! <span className="text-2xl">👋</span>
@@ -146,16 +146,16 @@ export default function Dashboard() {
             Real-time student lead metrics and staff operations.
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-[#f4f4f5] px-4 py-2 rounded-full border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-2 bg-[#f4f4f5] px-4 py-2 rounded-full border border-slate-200 shadow-sm self-start sm:self-auto shrink-0">
           <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div>
           <span className="text-xs font-bold text-slate-600">Live Monitoring Mode</span>
         </div>
       </div>
 
       {/* Top Stats Cards */}
-      <div className="flex flex-wrap gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
         {/* Card 1 */}
-        <div className="flex-1 min-w-[200px] bg-[#e31b23] rounded-2xl px-5 py-5 shadow-lg relative overflow-hidden flex flex-col justify-between h-fit">
+        <div className="w-full bg-[#e31b23] rounded-2xl px-5 py-5 shadow-lg relative overflow-hidden flex flex-col justify-between h-fit">
           <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
           <div className="flex justify-between items-start z-10">
             <h3 className="text-white font-bold text-xs tracking-wider">TOTAL INQUIRIES</h3>
@@ -176,7 +176,7 @@ export default function Dashboard() {
         </div>
 
         {/* Card 2 */}
-        <div className="flex-1 min-w-[200px] bg-white rounded-2xl px-5 py-5 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 flex flex-col justify-between h-fit">
+        <div className="w-full bg-white rounded-2xl px-5 py-5 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 flex flex-col justify-between h-fit">
           <div className="flex justify-between items-start">
             <h3 className="text-slate-500 font-bold text-xs tracking-wider">ADMISSIONS COMPLETED</h3>
             <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-100">
@@ -194,7 +194,7 @@ export default function Dashboard() {
         </div>
 
         {/* Card 3 */}
-        <div className="flex-1 min-w-[200px] bg-white rounded-2xl px-5 py-5 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 flex flex-col justify-between h-fit">
+        <div className="w-full bg-white rounded-2xl px-5 py-5 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 flex flex-col justify-between h-fit">
           <div className="flex justify-between items-start">
             <h3 className="text-slate-500 font-bold text-xs tracking-wider">SCHEDULED FOLLOW-UPS</h3>
             <div className="bg-amber-50 p-2 rounded-xl border border-amber-100">
@@ -212,7 +212,7 @@ export default function Dashboard() {
         </div>
 
         {/* Card 4 */}
-        <div className="flex-1 min-w-[200px] bg-white rounded-2xl px-5 py-5 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 flex flex-col justify-between h-fit">
+        <div className="w-full bg-white rounded-2xl px-5 py-5 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 flex flex-col justify-between h-fit">
           <div className="flex justify-between items-start">
             <h3 className="text-slate-500 font-bold text-xs tracking-wider">SUCCESS RATE</h3>
             <div className="bg-indigo-50 p-2 rounded-xl border border-indigo-100">
@@ -235,12 +235,12 @@ export default function Dashboard() {
         
         {/* Left Column - Chart */}
         <div className="xl:flex-[2] min-w-0 bg-white rounded-2xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 flex flex-col overflow-hidden">
-          <div className="flex justify-between items-start mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
               <h2 className="text-sm font-black text-slate-800 uppercase tracking-wide">INQUIRY VOLUME OVERVIEW</h2>
               <p className="text-slate-500 text-xs font-medium mt-1">Chronological student registrations over last 8 days</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
               <div className="w-3.5 h-3.5 bg-[#e31b23] rounded-sm"></div>
               <span className="text-xs font-bold text-slate-800">Student Inquiries (Leads)</span>
             </div>

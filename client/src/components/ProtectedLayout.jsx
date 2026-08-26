@@ -49,7 +49,7 @@ const ProtectedLayout = ({ children }) => {
 
         <main className="flex-1 flex flex-col justify-between overflow-y-auto">
           {/* pb-24 on mobile prevents bottom navigation bar from overlapping the content */}
-          <div className="p-6 md:p-10 w-full mx-auto pb-24 md:pb-10">
+          <div className="p-4 sm:p-6 md:p-10 w-full mx-auto pb-24 md:pb-10">
             {children}
           </div>
 

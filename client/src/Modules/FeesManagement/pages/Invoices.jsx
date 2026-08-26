@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { FileText, Eye, X, RefreshCw, GraduationCap } from 'lucide-react';
+import { FileText, Eye, X, RefreshCw, GraduationCap, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSystemSettings } from '../context/SettingsContext';
 import { feesApi } from '../../../api/feesApi';
 import CommonTable from '../components/CommonTable';
 import StatusBadge from '../components/StatusBadge';
 import FilterPanel from '../components/FilterPanel';
+import DatePicker from '../components/DatePicker';
 import Loader from '../components/Loader';
 import ErrorState from '../components/ErrorState';
 
@@ -13,13 +14,14 @@ const Invoices = () => {
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('All'); // All, today, week, month
-  
+  const [exactDate, setExactDate] = useState('');
+
   // Data states
   const [invoicesList, setInvoicesList] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [activeInvoice, setActiveInvoice] = useState(null);
   const [activeInstallments, setActiveInstallments] = useState([]);
-  
+
   // UI states
   const [loading, setLoading] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
@@ -41,6 +43,7 @@ const Invoices = () => {
         limit: 20,
         status: statusFilter === 'All' ? undefined : statusFilter,
         dateFilter: dateFilter === 'All' ? undefined : dateFilter,
+        exactDate: exactDate || undefined,
         search: searchQuery === '' ? undefined : searchQuery
       };
       const res = await feesApi.getInvoices(params);
@@ -63,7 +66,7 @@ const Invoices = () => {
       const res = await feesApi.getInvoiceById(id);
       if (res.success) {
         setActiveInvoice(res.data);
-        
+
         // Fetch installments for this student
         if (res.data.studentId?._id) {
           const instRes = await feesApi.getInstallmentsByStudent(res.data.studentId._id);
@@ -82,7 +85,7 @@ const Invoices = () => {
 
   useEffect(() => {
     fetchInvoices();
-  }, [page, statusFilter, dateFilter]);
+  }, [page, statusFilter, dateFilter, exactDate]);
 
   // Format currency
   const formatINR = (amount) => {
@@ -107,56 +110,85 @@ const Invoices = () => {
     window.print();
   };
 
+
+  const groupedInvoices = useMemo(() => {
+    const map = new Map();
+    invoicesList.forEach(inv => {
+      const sId = inv.studentId?._id || 'unknown';
+      if (!map.has(sId)) {
+        map.set(sId, {
+          _id: sId,
+          studentId: inv.studentId,
+          invoices: []
+        });
+      }
+      map.get(sId).invoices.push(inv);
+    });
+
+    const groups = Array.from(map.values());
+    groups.forEach(g => {
+      g.invoices.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+      const pending = g.invoices.filter(i => i.status === 'PENDING');
+      g.summaryInvoice = pending.length > 0 ? pending[0] : g.invoices[0];
+
+      // Add a searchable string for CommonTable's local filter
+      const invNumbers = g.invoices.map(i => i.invoiceNumber).join(' ');
+      g.searchString = `${g.studentId?.fullName || ''} ${g.studentId?.studentId || ''} ${g.studentId?.course || ''} ${invNumbers}`;
+    });
+    return groups;
+  }, [invoicesList]);
+
   const columns = useMemo(() => [
     {
-      header: 'Invoice ID',
-      accessor: 'invoiceNumber',
-      render: (inv) => <span className="font-mono text-slate-500 font-bold">{inv.invoiceNumber}</span>
-    },
-    {
       header: 'Student Name',
-      accessor: 'studentId',
-      render: (inv) => (
-        <div>
-          <div className="font-bold text-slate-800">{inv.studentId?.fullName || 'N/A'}</div>
-          <span className="text-[10px] text-slate-400 font-semibold">{inv.studentId?.studentId || 'N/A'}</span>
+      accessor: 'studentName',
+      render: (group, isExpanded) => (
+        <div className="flex items-center gap-3">
+          {isExpanded ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
+          <div>
+            <div className="font-bold text-slate-800">{group.studentId?.fullName || 'N/A'}</div>
+            <span className="text-[10px] text-slate-400 font-semibold">{group.studentId?.studentId || 'N/A'}</span>
+          </div>
         </div>
       )
     },
     {
       header: 'Course',
-      accessor: 'studentId',
-      render: (inv) => <span className="text-slate-650">{inv.studentId?.course || 'N/A'}</span>
+      accessor: 'course',
+      render: (group) => <span className="text-slate-650">{group.studentId?.course || 'N/A'}</span>
     },
     {
-      header: 'Amount Due',
+      header: 'Total EMIs',
+      accessor: 'count',
+      render: (group) => {
+        const pendingCount = group.invoices.filter(i => i.status === 'PENDING').length;
+        return <span className="font-semibold text-slate-655">{group.invoices.length} Total ({pendingCount} Pending)</span>;
+      }
+    },
+    {
+      header: 'Next Amount Due',
       accessor: 'amount',
-      render: (inv) => <span className="font-extrabold text-slate-800">{formatINR(inv.amount)}</span>
+      render: (group) => <span className="font-extrabold text-slate-800">{formatINR(group.summaryInvoice?.amount)}</span>
     },
     {
-      header: 'Issue Date',
-      accessor: 'issueDate',
-      render: (inv) => <span className="text-slate-500">{formatDate(inv.issueDate)}</span>
-    },
-    {
-      header: 'Due Date',
+      header: 'Next Due Date',
       accessor: 'dueDate',
-      render: (inv) => <span className="text-slate-500">{formatDate(inv.dueDate)}</span>
+      render: (group) => <span className="text-slate-500 font-semibold">{formatDate(group.summaryInvoice?.dueDate)}</span>
     },
     {
-      header: 'Status',
+      header: 'Summary Status',
       accessor: 'status',
-      render: (inv) => <StatusBadge status={inv.status} />
+      render: (group) => <StatusBadge status={group.summaryInvoice?.status} />
     },
     {
       header: 'Actions',
       className: 'text-right',
-      render: (inv) => (
-        <div className="flex items-center justify-end gap-1.5">
+      render: (group) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => loadInvoiceDetails(inv._id)}
+            onClick={() => loadInvoiceDetails(group.summaryInvoice?._id)}
             className="p-1.5 rounded-lg border border-[#DEDCD8] bg-white text-slate-655 hover:bg-[#FAF9F6] transition-all cursor-pointer"
-            title="Preview Invoice"
+            title="Preview Latest Invoice"
           >
             <Eye size={14} />
           </button>
@@ -165,8 +197,58 @@ const Invoices = () => {
     }
   ], []);
 
+  const renderExpandedRow = (group) => (
+    <div className="p-4 pl-12 bg-white/50 space-y-2">
+      <h4 className="text-xs font-bold text-slate-600 mb-2">EMI Schedule for {group.studentId?.fullName || 'N/A'}</h4>
+      <div className="border border-slate-150 rounded-xl overflow-hidden">
+        <table className="w-full text-left text-[11px] font-semibold text-slate-650">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-150 text-[10px] text-slate-500 uppercase tracking-wider">
+              <th className="px-4 py-2">Invoice ID</th>
+              <th className="px-4 py-2">Issue Date</th>
+              <th className="px-4 py-2">Due Date</th>
+              <th className="px-4 py-2 text-right">Amount</th>
+              <th className="px-4 py-2 text-center">Status</th>
+              <th className="px-4 py-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {group.invoices.map(inv => (
+              <tr key={inv._id} className="hover:bg-slate-50">
+                <td className="px-4 py-2 font-mono font-bold">{inv.invoiceNumber}</td>
+                <td className="px-4 py-2">{formatDate(inv.issueDate)}</td>
+                <td className="px-4 py-2 text-brand-red">{formatDate(inv.dueDate)}</td>
+                <td className="px-4 py-2 text-right font-extrabold text-slate-800">{formatINR(inv.amount)}</td>
+                <td className="px-4 py-2 text-center"><StatusBadge status={inv.status} /></td>
+                <td className="px-4 py-2 text-right">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); loadInvoiceDetails(inv._id); }}
+                    className="p-1 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-500"
+                    title="View Invoice"
+                  >
+                    <Eye size={12} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   const dropdownFilters = (
     <FilterPanel showIcon={true}>
+      <DatePicker
+        selectedDate={exactDate}
+        onChange={(date) => {
+          setExactDate(date);
+          setDateFilter('All');
+        }}
+        placeholder="Select Exact Date"
+        className="w-36 text-xs py-1 px-2 border-none bg-transparent"
+      />
+      <div className="w-px h-4 bg-slate-200 mx-1"></div>
       <select
         value={dateFilter}
         onChange={(e) => setDateFilter(e.target.value)}
@@ -193,14 +275,13 @@ const Invoices = () => {
 
   return (
     <div className="space-y-4 print:p-0 print:bg-white print:text-black">
-      
+
       {/* Toast notifications */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold border flex items-center gap-2 animate-fade-in ${
-          toast.type === 'error' 
-            ? 'bg-rose-50 border-rose-100 text-rose-600' 
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold border flex items-center gap-2 animate-fade-in ${toast.type === 'error'
+            ? 'bg-rose-50 border-rose-100 text-rose-600'
             : 'bg-emerald-50 border-emerald-100 text-emerald-600'
-        }`}>
+          }`}>
           <span>{toast.message}</span>
         </div>
       )}
@@ -211,7 +292,7 @@ const Invoices = () => {
           <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Fee Demands & Invoices</h3>
           <p className="text-[10px] font-semibold text-slate-400">Total Demands generated: {totalCount}</p>
         </div>
-        <button 
+        <button
           onClick={fetchInvoices}
           className="p-2 border border-[#DEDCD8] bg-white text-slate-500 rounded-xl hover:bg-[#FAF9F6] transition-all cursor-pointer shadow-xs active:scale-95"
           title="Refresh invoices"
@@ -225,7 +306,9 @@ const Invoices = () => {
       <div className="print:hidden">
         <CommonTable
           columns={columns}
-          data={invoicesList}
+          data={groupedInvoices}
+          expandable={true}
+          renderExpandedRow={renderExpandedRow}
           loading={loading}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -239,255 +322,199 @@ const Invoices = () => {
       {/* Invoice Modal Preview Drawer */}
       {activeInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs print:relative print:inset-auto print:bg-white print:p-0">
-          <div className="relative w-full max-w-2xl bg-white border border-[#EBEAE6] rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col print:border-none print:shadow-none print:max-h-full print:w-full">
-            
-            {/* Dynamic CSS styles injected specifically for clean printing */}
+          <div className="relative w-full max-w-[800px] bg-white border border-[#EBEAE6] shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col p-8 font-sans print:border-none print:shadow-none print:max-h-full print:w-full print:p-0 text-black">
+
             <style>{`
-              @media print {
-                /* Hide everything else on the page */
-                aside, nav, footer, header, .print\:hidden, button {
-                  display: none !important;
+                @media print {
+                  aside, nav, footer, header, .print\\:hidden, button {
+                    display: none !important;
+                  }
+                  html, body, #root, #root > div, main {
+                    background: white !important;
+                    color: black !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                    height: auto !important;
+                    min-height: 0 !important;
+                    overflow: visible !important;
+                    display: block !important;
+                    position: static !important;
+                  }
+                  body {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                  }
+                  .fixed.inset-0 {
+                    position: static !important;
+                    display: block !important;
+                    background: transparent !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    backdrop-filter: none !important;
+                    overflow: visible !important;
+                  }
                 }
-                
-                /* Reset body and html layout for print */
-                html, body, #root, #root > div, main {
-                  background: white !important;
-                  color: black !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  width: 100% !important;
-                  height: auto !important;
-                  min-height: 0 !important;
-                  overflow: visible !important;
-                  display: block !important;
-                  position: static !important;
-                }
+              `}</style>
 
-                /* Override modal container styling to render inline on print page */
-                .fixed.inset-0 {
-                  position: static !important;
-                  display: block !important;
-                  background: transparent !important;
-                  padding: 0 !important;
-                  margin: 0 !important;
-                  backdrop-filter: none !important;
-                  overflow: visible !important;
-                }
+            <button
+              onClick={() => setActiveInvoice(null)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors print:hidden z-10"
+            >
+              <X size={20} />
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="absolute top-4 right-16 px-4 py-2 rounded-xl bg-brand-primary text-white font-bold text-xs hover:bg-brand-primary/90 transition-colors print:hidden z-10"
+            >
+              Print Invoice
+            </button>
 
-                /* Override modal card wrapper styling */
-                .relative.max-w-2xl {
-                  max-width: 100% !important;
-                  width: 100% !important;
-                  height: auto !important;
-                  max-height: none !important;
-                  border: none !important;
-                  box-shadow: none !important;
-                  overflow: visible !important;
-                  display: block !important;
-                  position: static !important;
-                }
+            {/* Exact Design Match Begins Here */}
 
-                /* Ensure printable element expands naturally */
-                #printable-invoice {
-                  display: block !important;
-                  width: 100% !important;
-                  height: auto !important;
-                  overflow: visible !important;
-                  padding: 0 !important;
-                  margin: 0 !important;
-                }
-
-                @page {
-                  size: auto;
-                  margin: 15mm 20mm;
-                }
-              }
-            `}</style>
-
-            {/* Modal Header */}
-            <div className="flex justify-between items-center p-4 border-b border-[#FAF9F6] print:hidden">
-              <span className="text-xs font-extrabold text-slate-450 uppercase tracking-wider">
-                {settings?.invoice?.invoiceHeader || 'Billing Invoice Voucher'}
-              </span>
-              <button 
-                onClick={() => setActiveInvoice(null)}
-                className="p-1 rounded-lg border border-slate-200 hover:bg-[#FAF9F6] text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
-              >
-                <X size={16} />
-              </button>
+            {/* Header */}
+            <div className="flex justify-between items-start mb-6 pt-4">
+              <div className="flex items-center">
+                <img src="/jains.svg" alt="JAINS COMPUTER" className="h-16 object-contain" onError={(e) => { e.target.onerror = null; e.target.src = "/logo.png"; }} />
+              </div>
+              <div className="text-right">
+                <div className="text-[12px] font-bold text-gray-800 mb-1">
+                  Issue Date : {formatDate(activeInvoice.issueDate)}<br />
+                  Invoice No.: {activeInvoice.invoiceNumber}
+                </div>
+                <div className="text-[10px] text-gray-500 leading-tight">
+                  Contact: +91-7976451466, +91-6377075972<br />
+                  Website: jainscomputer.com<br />
+                  Address: 13A, Shivpuri, Indrapura, Jhotwara, Jaipur, Rajasthan 302012
+                </div>
+                <h1 className="text-6xl font-bold text-[#E31E24] mt-2 tracking-tight">Invoice</h1>
+              </div>
             </div>
 
-            {/* Modal Printable Content */}
-            <div id="printable-invoice" className="flex-1 overflow-y-auto p-8 space-y-6 text-slate-700 print:overflow-visible print:p-0">
-              
-              {/* Invoice Header block */}
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  {settings?.receipt?.showLogo && (
-                    <div className="mb-2">
-                      {settings?.institute?.logo && settings.institute.logo.startsWith('http') ? (
-                        <img 
-                          src={settings.institute.logo} 
-                          alt="Logo" 
-                          className="h-10 w-auto object-contain" 
-                        />
-                      ) : (
-                        <div className="h-10 w-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shadow-md shadow-amber-500/10">
-                          <GraduationCap size={22} className="stroke-[2.5]" />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <h2 className="text-base font-extrabold text-slate-900 mt-1">
-                    {settings?.institute?.name || 'JCMS ERP Academy'}
-                  </h2>
-                  <p className="text-[10px] text-slate-400 leading-normal max-w-[250px]">
-                    {settings?.institute?.address || '12, Corporate Block, Educational Hub'}, {settings?.institute?.city || 'New Delhi'}, {settings?.institute?.state || 'Delhi'} - {settings?.institute?.pincode || '110001'}
-                  </p>
+            {/* Details Boxes */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {/* Student Box */}
+              <div className="border-[1.5px] border-black flex flex-col h-full">
+                <div className="bg-black text-white text-[13px] font-semibold px-4 py-1.5">
+                  Student Details
                 </div>
-                <div className="text-right space-y-1">
-                  <h3 className="text-lg font-extrabold text-slate-800">{activeInvoice.invoiceNumber}</h3>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Date Issued: {formatDate(activeInvoice.issueDate)}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-red">Due Date: {formatDate(activeInvoice.dueDate)}</p>
+                <div className="p-4 text-[12px] space-y-1.5 flex-1">
+                  <div><span className="font-bold">Enrollment No.:</span> {activeInvoice.studentId?.studentId || 'N/A'}</div>
+                  <div><span className="font-bold">Name:</span> {activeInvoice.studentId?.fullName || 'N/A'}</div>
+                  <div><span className="font-bold">Mobile Number:</span> {activeInvoice.studentId?.mobile || 'N/A'}</div>
+                  <div><span className="font-bold">Email ID:</span> {activeInvoice.studentId?.email || 'N/A'}</div>
+                  <div><span className="font-bold">D.O.B:</span> {activeInvoice.studentId?.dob ? formatDate(activeInvoice.studentId.dob) : 'N/A'}</div>
+                  <div><span className="font-bold">Address:</span> {activeInvoice.studentId?.address || 'N/A'}</div>
                 </div>
               </div>
-
-              <div className="h-px bg-slate-100" />
-
-              {/* Bill to Section */}
-              <div className="flex gap-4 text-xs font-semibold">
-                <div className="space-y-1 bg-[#FAF9F6]/50 p-4 border border-[#EBEAE6] rounded-2xl">
-                  <span className="text-[9px] uppercase tracking-wide text-slate-400 font-extrabold">Bill To Student:</span>
-                  <div className="text-slate-800 font-bold">{activeInvoice.studentId?.fullName || 'N/A'}</div>
-                  <div className="text-slate-500 font-mono">Reg ID: {activeInvoice.studentId?.studentId || 'N/A'}</div>
-                  <div className="text-slate-500">Course Class: {activeInvoice.studentId?.course || 'N/A'}</div>
+              {/* Course Box */}
+              <div className="border-[1.5px] border-black flex flex-col h-full">
+                <div className="bg-black text-white text-[13px] font-semibold px-4 py-1.5">
+                  Course Details
                 </div>
-                <div className="space-y-1 bg-[#FAF9F6]/50 p-4 border border-[#EBEAE6] rounded-2xl">
-                  <span className="text-[9px] uppercase tracking-wide text-slate-400 font-extrabold">Billing Parameters:</span>
-                  <div>Year FY: <span className="text-slate-800 font-bold">{settings?.fee?.financialYear || '2026-2027'}</span></div>
-                  <div>Installment Term: <span className="text-slate-800 font-bold">Term #{activeInvoice.installmentId?.installmentNo || 'N/A'}</span></div>
-                  <div>Account Status: <StatusBadge status={activeInvoice.status} /></div>
-                </div>
-              </div>
-
-              {/* Items details table */}
-              <div className="border border-slate-150 rounded-2xl overflow-hidden text-xs">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">
-                      <th className="px-4 py-3">Fee Particular description</th>
-                      <th className="px-4 py-3 text-right">Amount (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="font-semibold text-slate-655">
-                      <td className="px-4 py-3">
-                        ERP Fee Term Installment (Particular Item charge: Class {activeInvoice.studentId?.course || 'N/A'})
-                      </td>
-                      <td className="px-4 py-3 text-right font-extrabold text-slate-800">{formatINR(activeInvoice.amount)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Installment History Ledger Statement */}
-              {activeInstallments.length > 0 && (
-                <div className="space-y-2 mt-4">
-                  <h4 className="text-[10px] uppercase tracking-wide text-slate-400 font-extrabold pb-1 border-b border-slate-100">
-                    Installment Ledger Summary (Full Fee Plan Details)
-                  </h4>
-                  <div className="border border-slate-150 rounded-2xl overflow-hidden text-xs">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-extrabold text-slate-500 uppercase tracking-wide">
-                          <th className="px-4 py-2">Installment Term</th>
-                          <th className="px-4 py-2">Due Date</th>
-                          <th className="px-4 py-2 text-right">Term Amount</th>
-                          <th className="px-4 py-2 text-right">Remaining Due</th>
-                          <th className="px-4 py-2 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activeInstallments.map((inst) => {
-                          const isCurrent = activeInvoice.installmentId?._id === inst._id;
-                          return (
-                            <tr 
-                              key={inst._id} 
-                              className={`border-b border-slate-100 font-semibold text-slate-655 ${
-                                isCurrent ? 'bg-amber-50/40 text-slate-800 font-bold' : ''
-                              }`}
-                            >
-                              <td className="px-4 py-2 flex items-center gap-1.5">
-                                <span>Term #{inst.installmentNo}</span>
-                                {isCurrent && (
-                                  <span className="text-[8px] px-1.5 py-0.5 bg-amber-100 text-amber-700 font-bold uppercase rounded-md tracking-wider">
-                                    Current Invoice
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-2 text-slate-500">{formatDate(inst.dueDate)}</td>
-                              <td className="px-4 py-2 text-right">{formatINR(inst.amount)}</td>
-                              <td className="px-4 py-2 text-right">{formatINR(inst.remainingAmount)}</td>
-                              <td className="px-4 py-2 text-center">
-                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold inline-block border ${
-                                  inst.status === 'PAID' 
-                                    ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
-                                    : inst.status === 'OVERDUE'
-                                    ? 'bg-rose-50 border-rose-100 text-rose-600'
-                                    : 'bg-amber-50 border-amber-100 text-amber-600'
-                                }`}>
-                                  {inst.status}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                <div className="p-4 text-[12px] flex-1 flex flex-col justify-between">
+                  <div>
+                    <span className="font-bold">Enrolled Course:</span> {Array.isArray(activeInvoice.studentId?.courses) ? activeInvoice.studentId.courses.join(', ') : (activeInvoice.studentId?.course || 'N/A')}
+                  </div>
+                  <div className="font-bold mt-4">
+                    Duration: <span className="font-normal">{activeInvoice.studentId?.courseDuration || 'N/A'} Months</span>
                   </div>
                 </div>
-              )}
-
-              {/* Terms and Sign block */}
-              <div className="flex gap-6 pt-2">
-                <div className="space-y-1">
-                  <span className="text-[9px] uppercase tracking-wide text-slate-400 font-extrabold">Terms & Conditions:</span>
-                  <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
-                    {settings?.invoice?.termsAndConditions || 'Fees once paid are non-refundable under normal circumstances. Pay before due date to avoid late fine assessments.'}
-                  </p>
-                </div>
-                <div className="flex flex-col items-center justify-end text-center space-y-1">
-                  <div className="h-12 flex items-center justify-center">
-                    <img 
-                      src="/AuthSingh.jpeg" 
-                      alt="Authorized Signature" 
-                      className="max-h-12 w-auto object-contain"
-                      style={{ filter: 'brightness(0)' }}
-                    />
-                  </div>
-                  <div className="h-px bg-slate-400 w-36 mx-auto" />
-                  <span className="text-[10px] uppercase tracking-wider text-slate-700 font-extrabold block">
-                    {settings?.invoice?.signaturePlaceholder || 'Authorized Signatory'}
-                  </span>
-                </div>
               </div>
-
             </div>
 
-            {/* Modal Actions Footer */}
-            <div className="flex justify-end gap-2.5 p-4 border-t border-[#FAF9F6] bg-slate-50 print:hidden">
-              <button 
-                onClick={() => setActiveInvoice(null)}
-                className="py-2 px-4 border border-[#DEDCD8] hover:bg-[#FAF9F6] rounded-xl text-xs font-bold text-slate-600 transition-all cursor-pointer"
-              >
-                Close Preview
-              </button>
-              <button 
-                onClick={handlePrint}
-                className="py-2 px-5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shadow-amber-500/10 active:scale-95"
-              >
-                Print / Download PDF
-              </button>
+            {/* Payment Details Box */}
+            <div className="border-[1.5px] border-black mb-[1px]">
+              <div className="bg-black text-white text-[13px] font-semibold px-4 py-1.5">
+                Payment Details
+              </div>
+              <table className="w-full text-center text-[11px] border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 font-bold border-b-[1.5px] border-black">
+                    <th className="py-2.5 border-r-[1.5px] border-black">Installment</th>
+                    <th className="py-2.5 border-r-[1.5px] border-black">Amount</th>
+                    <th className="py-2.5 border-r-[1.5px] border-black">Payment Date</th>
+                    <th className="py-2.5 border-r-[1.5px] border-black">Payment Mode</th>
+                    <th className="py-2.5 border-r-[1.5px] border-black">Transaction ID</th>
+                    <th className="py-2.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(activeInstallments.length > 0 ? activeInstallments : [{ _id: 'default', amount: activeInvoice.amount, status: activeInvoice.status, paidDate: activeInvoice.paidDate }]).map((inst, index) => {
+                    const numStr = (index + 1) + (["st", "nd", "rd"][((index + 1) % 10) - 1] || "th");
+                    const payment = (inst.payments || [])[0];
+                    const isPaid = inst.status === 'PAID';
+                    return (
+                      <tr key={inst._id} className="border-b-[1.5px] border-gray-300">
+                        <td className="py-2 border-r-[1.5px] border-black text-gray-700">{numStr} Installment</td>
+                        <td className="py-2 border-r-[1.5px] border-black text-gray-700">Rs. {inst.amount}/-</td>
+                        <td className="py-2 border-r-[1.5px] border-black text-gray-700">{isPaid && inst.paidDate ? formatDate(inst.paidDate) : (payment?.paymentDate ? formatDate(payment.paymentDate) : '-')}</td>
+                        <td className="py-2 border-r-[1.5px] border-black text-gray-700">{payment?.paymentMode || '-'}</td>
+                        <td className="py-2 border-r-[1.5px] border-black text-gray-700">{payment?.transactionId || '-'}</td>
+                        <td className={`py-2 font-bold ${isPaid ? 'bg-[#dcfce7] text-[#166534]' : 'bg-[#fee2e2] text-[#991b1b]'}`}>
+                          {isPaid ? 'Paid' : 'Due'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {/* Empty Rows to match design height */}
+                  {Array.from({ length: Math.max(0, 9 - (activeInstallments.length || 1)) }).map((_, i) => (
+                    <tr key={`empty-${i}`} className="border-b-[1.5px] border-gray-300">
+                      <td className="py-4 border-r-[1.5px] border-black"></td>
+                      <td className="py-4 border-r-[1.5px] border-black"></td>
+                      <td className="py-4 border-r-[1.5px] border-black"></td>
+                      <td className="py-4 border-r-[1.5px] border-black"></td>
+                      <td className="py-4 border-r-[1.5px] border-black"></td>
+                      <td className="py-4"></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Total Fees */}
+            <div className="bg-black text-white flex justify-between items-center px-4 py-2.5 text-[14px] font-bold border-[1.5px] border-black border-t-0">
+              <div>Total Fees: <span className="font-normal">Rs. {
+                activeInstallments.length > 0
+                  ? activeInstallments.reduce((acc, inst) => acc + inst.amount, 0)
+                  : activeInvoice.amount
+              }/-</span></div>
+              <div className="bg-gray-300 text-black px-3 py-0.5 rounded-[2px] text-[12px] font-bold">
+                Due: <span className="font-normal">Rs. {
+                  activeInstallments.length > 0
+                    ? activeInstallments.filter(inst => inst.status !== 'PAID').reduce((acc, inst) => acc + (inst.amount - (inst.paidAmount || 0)), 0)
+                    : (activeInvoice.status === 'PAID' ? 0 : activeInvoice.amount)
+                }/-</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-6 flex justify-between items-end">
+              <div className="text-[10px] text-gray-500 w-2/3">
+                <h5 className="font-bold text-gray-400 text-[11px] mb-1">Terms & Conditions</h5>
+                <ol className="list-decimal pl-3 space-y-0.5">
+                  <li>Fees once paid are non-refundable and non-transferable.</li>
+                  <li>All installments must be paid on or before the due date.</li>
+                  <li>Certificates will be issued only after full fee payment.</li>
+                  <li>Late payments may result in suspension of classes or services.</li>
+                  <li>Subject to Jaipur, Rajasthan jurisdiction only.</li>
+                </ol>
+              </div>
+              <div className="flex gap-4 items-end relative pb-2">
+                {/* SVG Seal Simulation */}
+                <div className="w-16 h-16 rounded-full border border-gray-400 flex items-center justify-center text-center p-1 text-[5px] text-gray-500 relative opacity-60">
+                  <div className="absolute inset-1 rounded-full border border-dashed border-gray-300"></div>
+                  <div className="font-bold">
+                    JAINS COMPUTER<br />JHOTWARA, JAIPUR
+                  </div>
+                </div>
+                <div className="text-center w-28 flex flex-col items-center">
+                  <img src="/AuthSingh.jpeg" className="h-10 mix-blend-multiply mb-1" alt="Signature" onError={(e) => e.target.style.display = 'none'} />
+                  <div className="w-full border-t border-black mb-1"></div>
+                  <div className="text-[11px] font-bold text-black leading-none">Aadish Jain</div>
+                  <div className="text-[9px] text-black leading-none mt-1">Director</div>
+                </div>
+              </div>
             </div>
 
           </div>

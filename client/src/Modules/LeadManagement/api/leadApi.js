@@ -49,5 +49,56 @@ export const leadApi = {
   updateLead: async (leadId, leadData) => {
     const response = await leadAxios.put(`/lead/${leadId}`, leadData);
     return response.data;
+  },
+
+  admitStudent: async (admissionData) => {
+    const formData = new FormData();
+    for (const key in admissionData) {
+      if (admissionData[key] !== null && admissionData[key] !== undefined) {
+        if (key === 'selectedCourses' || key === 'enrolledCourses' || key === 'courses' || key === 'emiSchedule') {
+          formData.append(key, JSON.stringify(admissionData[key]));
+        } else if (key === 'idDocumentPhotos') {
+          admissionData[key].forEach(file => {
+            formData.append('idDocumentPhotos', file);
+          });
+        } else if (key === 'retainedIdDocumentPhotos') {
+          formData.append(key, JSON.stringify(admissionData[key]));
+        } else {
+          formData.append(key, admissionData[key]);
+        }
+      }
+    }
+    const response = await leadAxios.post('/lead/admission', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+  
+  updateAdmittedStudent: async (id, admissionData) => {
+    const formData = new FormData();
+    for (const key in admissionData) {
+      if (admissionData[key] !== null && admissionData[key] !== undefined) {
+        if (key === 'selectedCourses' || key === 'enrolledCourses' || key === 'courses' || key === 'emiSchedule') {
+          formData.append(key, JSON.stringify(admissionData[key]));
+        } else if (key === 'idDocumentPhotos') {
+          admissionData[key].forEach(file => {
+            formData.append('idDocumentPhotos', file);
+          });
+        } else if (key === 'retainedIdDocumentPhotos') {
+          formData.append(key, JSON.stringify(admissionData[key]));
+        } else {
+          formData.append(key, admissionData[key]);
+        }
+      }
+    }
+    const response = await leadAxios.put(`/lead/admission/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  getAdmittedStudents: async () => {
+    const response = await leadAxios.get('/lead/admissions');
+    return response.data;
   }
 };

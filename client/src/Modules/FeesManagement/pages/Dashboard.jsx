@@ -202,7 +202,7 @@ const Dashboard = ({ onNavigate }) => {
 
       {/* Loading Skeleton / Dashboard Summary stats grid */}
       {loading && !summary ? (
-        <div className="flex flex-wrap gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 12 }).map((_, idx) => (
             <div key={idx} className="bg-white border border-[#EBEAE6] rounded-2xl p-4.5 shadow-sm animate-pulse space-y-2.5">
               <div className="h-2 bg-slate-100 rounded w-1/2" />
@@ -212,7 +212,7 @@ const Dashboard = ({ onNavigate }) => {
         </div>
       ) : (
         summary && (
-          <div className="flex flex-wrap gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <StatsCard title="Total Students" value={summary.totalStudents} icon={Users} trend="Active + Inactive" trendType="neutral" accentColor="from-blue-500 to-sky-500" />
             <StatsCard title="Active Students" value={summary.activeStudents} icon={Users} trend="Current Enrolled" trendType="up" accentColor="from-emerald-500 to-teal-500" />
             <StatsCard title="Inactive Students" value={summary.inactiveStudents} icon={Users} trend="Soft Deleted / Terminated" trendType="down" accentColor="from-slate-500 to-slate-700" />
@@ -386,7 +386,7 @@ const Dashboard = ({ onNavigate }) => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
+              <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
                 <thead>
                   <tr className="border-b border-[#EBEAE6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     <th className="pb-3">Student Name</th>
@@ -426,7 +426,7 @@ const Dashboard = ({ onNavigate }) => {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </div>
 
@@ -443,7 +443,7 @@ const Dashboard = ({ onNavigate }) => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
+              <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
                 <thead>
                   <tr className="border-b border-[#EBEAE6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     <th className="pb-3">Student Name</th>
@@ -483,7 +483,7 @@ const Dashboard = ({ onNavigate }) => {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </div>
 
@@ -500,7 +500,7 @@ const Dashboard = ({ onNavigate }) => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
+              <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
                 <thead>
                   <tr className="border-b border-[#EBEAE6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     <th className="pb-3">Student Name</th>
@@ -546,7 +546,7 @@ const Dashboard = ({ onNavigate }) => {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </div>
 
@@ -563,7 +563,7 @@ const Dashboard = ({ onNavigate }) => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
+              <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
                 <thead>
                   <tr className="border-b border-[#EBEAE6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     <th className="pb-3">Student Name</th>
@@ -604,7 +604,7 @@ const Dashboard = ({ onNavigate }) => {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </div>
 

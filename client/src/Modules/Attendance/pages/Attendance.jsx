@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Check, X, ShieldAlert, Sparkles, 
+  ArrowLeft, Check, X, ShieldAlert, Sparkles, UserCheck,
   Calendar, Users, Clock, Search, Plus, User, AlertCircle, Edit2, FileSpreadsheet, Trash2, Eye,
   Bell, CheckCheck, RefreshCw, MapPin, Info
 } from 'lucide-react';
@@ -51,6 +51,7 @@ export default function Attendance() {
   // Dashboard Core Data
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [dailySummary, setDailySummary] = useState([]);
+  const [customDate, setCustomDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeEmployees, setActiveEmployees] = useState([]);
   const [chartStats, setChartStats] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -145,7 +146,14 @@ export default function Attendance() {
 
   const isFetchingRef = useRef(false);
 
-  const fetchData = async (silent = false) => {
+  const handleDateChange = (newDate) => {
+    if (newDate) {
+      setCustomDate(newDate);
+      fetchData(false, newDate);
+    }
+  };
+
+  const fetchData = async (silent = false, dateOverride = customDate) => {
     if (isFetchingRef.current && silent) return;
     isFetchingRef.current = true;
     try {
@@ -154,7 +162,7 @@ export default function Attendance() {
       
       const [pendingRes, summaryRes, activeRes, statsRes, leavesRes, settingsRes] = await Promise.all([
         adminAttendanceApi.getPendingApprovals(),
-        adminAttendanceApi.getDailySummary(),
+        adminAttendanceApi.getDailySummary(dateOverride),
         adminAttendanceApi.getActiveEmployees(),
         adminAttendanceApi.getAttendanceStats(),
         adminAttendanceApi.getAllLeaves(),
@@ -264,7 +272,8 @@ export default function Attendance() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customDate]);
 
   useEffect(() => {
     if (success) {
@@ -544,6 +553,29 @@ export default function Attendance() {
 
   // Monthly Reports States
   const [showReportModal, setShowReportModal] = useState(false);
+  // Employee Calendar & Edit States
+  const [showEmployeeCalendarModal, setShowEmployeeCalendarModal] = useState(false);
+  const [selectedDayDetails, setSelectedDayDetails] = useState(null);
+  
+  const [isEditingAttendance, setIsEditingAttendance] = useState(false);
+  const [editAttendanceForm, setEditAttendanceForm] = useState({
+    status: 'Present',
+    checkIn: '',
+    checkOut: ''
+  });
+  const [editAttendanceLoading, setEditAttendanceLoading] = useState(false);
+  const [editAttendanceError, setEditAttendanceError] = useState('');
+  
+  // Quick Edit Modal States
+  const [showQuickEditModal, setShowQuickEditModal] = useState(false);
+  const [quickEditLog, setQuickEditLog] = useState(null);
+  const [quickEditForm, setQuickEditForm] = useState({
+    status: '', checkIn: '', checkOut: ''
+  });
+  const [quickEditLoading, setQuickEditLoading] = useState(false);
+  const [quickEditError, setQuickEditError] = useState('');
+
+  const clickTimer = useRef(null);
   const [reportEmployeeId, setReportEmployeeId] = useState('');
   const [selectedReportMonthKey, setSelectedReportMonthKey] = useState('');
   const [reportData, setReportData] = useState([]);
@@ -551,31 +583,30 @@ export default function Attendance() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState('');
 
-  // Dynamically compute the last 3 months list, going back only to dateOfJoining
+  // Dynamically compute the months list, going back to dateOfJoining
   const reportMonthsList = useMemo(() => {
     const list = [];
-    const today = new Date();
+    const joinDate = reportEmployeeInfo?.dateOfJoining ? new Date(reportEmployeeInfo.dateOfJoining) : new Date(new Date().getFullYear(), 0, 1);
+    const startYear = joinDate.getFullYear();
+    const startMonth = joinDate.getMonth();
+    const now = new Date();
     
-    // Determine joining date limit
-    const joiningDate = reportEmployeeInfo?.dateOfJoining ? new Date(reportEmployeeInfo.dateOfJoining) : new Date();
-    // Normalize joiningDate to the 1st of its month to allow selecting that entire month
-    const joiningMonthStart = new Date(joiningDate.getFullYear(), joiningDate.getMonth(), 1);
+    let currentYear = now.getFullYear();
+    let currentMonth = now.getMonth();
 
-    for (let i = 0; i < 3; i++) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      
-      // Stop adding past months if we go earlier than the joining month
-      if (d < joiningMonthStart) {
-        break;
-      }
-
-      const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    while (currentYear > startYear || (currentYear === startYear && currentMonth >= startMonth)) {
+      const d = new Date(currentYear, currentMonth, 1);
       list.push({
-        label,
-        year: d.getFullYear(),
-        month: d.getMonth() + 1, // 1-indexed
-        key: `${d.getFullYear()}-${d.getMonth() + 1}`
+        key: `${currentYear}-${currentMonth + 1}`,
+        label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        year: currentYear,
+        month: currentMonth + 1
       });
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
     }
     return list;
   }, [reportEmployeeInfo?.dateOfJoining]);
@@ -606,7 +637,6 @@ export default function Attendance() {
     const empId = emp._id || emp.id;
     if (empId) {
       setReportEmployeeId(empId);
-      // Auto-set profile info locally for immediate fallback rendering before server call finishes
       setReportEmployeeInfo({
         name: emp.name,
         lastName: emp.lastName,
@@ -615,7 +645,39 @@ export default function Attendance() {
         profilePicture: emp.profilePicture,
         dateOfJoining: emp.dateOfJoining || emp.createdAt || new Date()
       });
+      setShowEmployeeCalendarModal(false);
       setShowReportModal(true);
+    }
+  };
+
+  const handleNameClick = (e, emp) => {
+    e.stopPropagation();
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+      handleOpenEmployeeCalendar(emp);
+    } else {
+      clickTimer.current = setTimeout(() => {
+        handleOpenReportModal(emp);
+        clickTimer.current = null;
+      }, 250);
+    }
+  };
+
+  const handleOpenEmployeeCalendar = (emp) => {
+    const empId = emp._id || emp.id;
+    if (empId) {
+      setReportEmployeeId(empId);
+      setReportEmployeeInfo({
+        name: emp.name,
+        lastName: emp.lastName,
+        department: emp.department,
+        designation: emp.designation,
+        profilePicture: emp.profilePicture,
+        dateOfJoining: emp.dateOfJoining || emp.createdAt || new Date()
+      });
+      setShowReportModal(false);
+      setShowEmployeeCalendarModal(true);
     }
   };
 
@@ -624,6 +686,97 @@ export default function Attendance() {
   const [holidayDate, setHolidayDate] = useState(new Date().toISOString().split('T')[0]);
   const [holidayReason, setHolidayReason] = useState('');
   const [holidayLoading, setHolidayLoading] = useState(false);
+
+  const handleEditAttendanceClick = () => {
+    if (!selectedDayDetails) return;
+    setIsEditingAttendance(true);
+    setEditAttendanceError('');
+    setEditAttendanceForm({
+      status: selectedDayDetails.status || 'Present',
+      checkIn: selectedDayDetails.log?.checkIn && selectedDayDetails.log.checkIn !== '-' ? selectedDayDetails.log.checkIn : '',
+      checkOut: selectedDayDetails.log?.checkOut && selectedDayDetails.log.checkOut !== '-' ? selectedDayDetails.log.checkOut : ''
+    });
+  };
+
+  const handleCancelEditAttendance = () => {
+    setIsEditingAttendance(false);
+    setEditAttendanceError('');
+  };
+
+  const handleSaveAttendance = async () => {
+    try {
+      setEditAttendanceLoading(true);
+      setEditAttendanceError('');
+      
+      let activeYear = new Date().getFullYear();
+      let activeMonth = new Date().getMonth();
+      if (selectedReportMonthKey) {
+        const parts = selectedReportMonthKey.split('-');
+        activeYear = parseInt(parts[0]);
+        activeMonth = parseInt(parts[1]) - 1;
+      }
+      
+      const payload = {
+        employeeId: reportEmployeeId,
+        date: new Date(activeYear, activeMonth, selectedDayDetails.day).toISOString(),
+        status: editAttendanceForm.status,
+        checkIn: editAttendanceForm.checkIn || null,
+        checkOut: editAttendanceForm.checkOut || null
+      };
+
+      const res = await adminAttendanceApi.updateAttendanceRecord(payload);
+      if (res.success) {
+        setSuccess('Attendance updated successfully.');
+        setIsEditingAttendance(false);
+        fetchMonthlyReport();
+        fetchData(true);
+      }
+    } catch (err) {
+      setEditAttendanceError(err.response?.data?.message || 'Failed to update attendance.');
+    } finally {
+      setEditAttendanceLoading(false);
+    }
+  };
+
+  const handleOpenQuickEdit = (log, dateOverride = null) => {
+    setQuickEditLog({ ...log, specificDate: dateOverride });
+    setQuickEditForm({
+      status: log.status || 'Present',
+      checkIn: log.checkIn && log.checkIn !== '-' ? log.checkIn : '',
+      checkOut: log.checkOut && log.checkOut !== '-' ? log.checkOut : ''
+    });
+    setShowQuickEditModal(true);
+  };
+
+  const handleSaveQuickEdit = async () => {
+    try {
+      setQuickEditLoading(true);
+      setQuickEditError('');
+      
+      const payload = {
+        employeeId: quickEditLog.id,
+        date: quickEditLog.specificDate ? new Date(quickEditLog.specificDate).toISOString() : new Date(customDate).toISOString(),
+        status: quickEditForm.status,
+        checkIn: quickEditForm.checkIn || null,
+        checkOut: quickEditForm.checkOut || null
+      };
+
+      const res = await adminAttendanceApi.updateAttendanceRecord(payload);
+      if (res.success) {
+        setSuccess("Attendance updated successfully.");
+        setShowQuickEditModal(false);
+        fetchData(true);
+        if (showReportModal) {
+          fetchMonthlyReport();
+        }
+      }
+    } catch (err) {
+      setQuickEditError(err.response?.data?.message || 'Failed to update attendance.');
+    } finally {
+      setQuickEditLoading(false);
+    }
+  };
+
   const [holidayError, setHolidayError] = useState('');
   const [holidaySuccess, setHolidaySuccess] = useState('');
 
@@ -877,17 +1030,7 @@ export default function Attendance() {
     return timeStr;
   };
 
-  // Prevent body scroll when any modal is open
-  useEffect(() => {
-    if (showTimingModal || showAddModal || showEditModal || showEditLeaveModal || showHolidayModal || showReportModal || showEmployeeTimingModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [showTimingModal, showAddModal, showEditModal, showEditLeaveModal, showHolidayModal, showReportModal, showEmployeeTimingModal]);
+  
 
   // Paginated Lists for All Employees & Leave Requests (5 items per page)
   const totalEmployeePages = Math.ceil(activeEmployees.length / 5) || 1;
@@ -962,6 +1105,132 @@ export default function Attendance() {
     );
   };
 
+
+  // --- EMPLOYEE CALENDAR MODAL LOGIC ---
+  useEffect(() => {
+    if ((showReportModal || showEmployeeCalendarModal) && reportEmployeeId && selectedReportMonthKey) {
+      fetchMonthlyReport();
+    }
+  }, [showReportModal, showEmployeeCalendarModal, reportEmployeeId, selectedReportMonthKey]);
+
+  let activeMonth = new Date().getMonth();
+  let activeYear = new Date().getFullYear();
+  if (selectedReportMonthKey) {
+    const parts = selectedReportMonthKey.split('-');
+    activeYear = parseInt(parts[0]);
+    activeMonth = parseInt(parts[1]) - 1;
+  }
+
+  const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+  const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
+
+  const totalDays = getDaysInMonth(activeYear, activeMonth);
+  const firstDayIndex = getFirstDayOfMonth(activeYear, activeMonth);
+
+  const gridCells = [];
+  for (let i = 0; i < firstDayIndex; i++) {
+    gridCells.push({ day: null, type: 'empty' });
+  }
+
+  const logsMap = {};
+  reportData.forEach(dayInfo => {
+    const d = new Date(dayInfo.date);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    logsMap[key] = dayInfo;
+  });
+
+  const now = new Date();
+  const todayDateKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+
+  let calPresentsCount = 0;
+  let calLatesCount = 0;
+  let calAbsentsCount = 0;
+
+  for (let day = 1; day <= totalDays; day++) {
+    const key = `${activeYear}-${activeMonth}-${day}`;
+    const log = logsMap[key];
+    const cellDate = new Date(activeYear, activeMonth, day);
+    const isWeekend = cellDate.getDay() === 0;
+    const isFuture = cellDate > now;
+    const isToday = key === todayDateKey;
+
+    let status = 'None';
+    if (log && log.status && log.status !== '-') {
+      status = log.status;
+    } else if (isFuture) {
+      status = 'Future';
+    } else if (isWeekend) {
+      status = 'Weekend';
+    } else {
+      status = 'Absent'; // Default past unfilled to Absent
+    }
+
+    if (status === 'Present') calPresentsCount++;
+    if (status === 'Late') calLatesCount++;
+    if (status === 'Absent') calAbsentsCount++;
+
+    gridCells.push({ day, type: 'day', cellDate, status, isToday, log });
+  }
+
+  useEffect(() => {
+    if (showEmployeeCalendarModal) {
+      let defaultCell = gridCells.find(c => c.isToday);
+      if (!defaultCell) {
+        defaultCell = [...gridCells].reverse().find(c => c.type === 'day' && c.status !== 'Future');
+      }
+      if (defaultCell && !selectedDayDetails) {
+        setSelectedDayDetails({
+          day: defaultCell.day,
+          dateLabel: `${defaultCell.cellDate.toLocaleDateString('en-GB', { weekday: 'short' })}, ${formatDate(defaultCell.cellDate)}`,
+          status: defaultCell.status,
+          log: defaultCell.log
+        });
+      }
+    } else {
+      setSelectedDayDetails(null);
+    }
+  }, [showEmployeeCalendarModal, selectedReportMonthKey, reportData]);
+
+  const handleDayCellClick = (cell) => {
+    if (cell.type !== 'day') return;
+    setIsEditingAttendance(false);
+    setSelectedDayDetails({
+      day: cell.day,
+      dateLabel: `${cell.cellDate.toLocaleDateString('en-GB', { weekday: 'short' })}, ${formatDate(cell.cellDate)}`,
+      status: cell.status,
+      log: cell.log
+    });
+  };
+
+  // Prevent modal background scroll & ESC handler
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowTimingModal(false);
+        setShowAddModal(false);
+        setShowEditModal(false);
+        setShowEditLeaveModal(false);
+        setShowHolidayModal(false);
+        setShowReportModal(false);
+        setShowEmployeeTimingModal(false);
+        setShowEmployeeCalendarModal(false);
+        setShowQuickEditModal(false);
+      }
+    };
+
+    if (showTimingModal || showAddModal || showEditModal || showEditLeaveModal || showHolidayModal || showReportModal || showEmployeeTimingModal || showEmployeeCalendarModal || showQuickEditModal) {
+      document.body.style.overflow = 'hidden';
+      document.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showTimingModal, showAddModal, showEditModal, showEditLeaveModal, showHolidayModal, showReportModal, showEmployeeTimingModal, showEmployeeCalendarModal, showQuickEditModal]);
+
   return (
     <div className="space-y-8 p-4 md:p-8 text-slate-800 font-sans">
       
@@ -979,9 +1248,11 @@ export default function Attendance() {
           <div className="space-y-1">
             <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Attendance</h1>
-              <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold bg-[#FAF9F6] border border-[#E8E6E1] py-1.5 px-3 rounded-lg shadow-sm cursor-pointer hover:bg-slate-50 transition-colors">
-                <Calendar size={14} className="text-slate-400" />
-                <span>{formatDate(new Date())}</span>
+              <div className="w-44 ml-2">
+                <DatePicker 
+                  value={customDate} 
+                  onChange={handleDateChange} 
+                />
               </div>
             </div>
             <p className="text-xs text-slate-500 font-bold tracking-wide uppercase">Corporate Attendance Control Panel</p>
@@ -1008,8 +1279,8 @@ export default function Attendance() {
             </button>
 
             {showNotifications && (
-              <div className="absolute right-0 mt-3 top-10 w-80 max-w-[calc(100vw-32px)] bg-white border border-slate-200 rounded-2xl shadow-xl p-3.5 space-y-2.5 max-h-[400px] overflow-y-auto z-50 flex flex-col">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-100 shrink-0">
+              <div className="absolute left-0 sm:left-auto sm:right-0 mt-3 top-10 w-[calc(100vw-2rem)] sm:w-80 max-w-[320px] bg-white border border-slate-200 rounded-2xl shadow-xl p-3.5 space-y-2.5 max-h-[400px] overflow-y-auto z-50 flex flex-col">
+                <div className="flex flex-col sm:flex-row sm:justify-between items-center pb-2 border-b border-slate-100 shrink-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">Attendance Alerts</span>
                     {unreadCount > 0 && (
@@ -1049,7 +1320,7 @@ export default function Attendance() {
                             : 'bg-amber-50/10 text-slate-800 font-semibold border-amber-100/50 shadow-sm'
                         }`}
                       >
-                        <div className="flex justify-between items-center mb-0.5 text-[8px]">
+                        <div className="flex flex-col sm:flex-row sm:justify-between items-center mb-0.5 text-[8px]">
                           <span className="px-1.5 py-0.5 rounded font-extrabold uppercase text-blue-600 bg-blue-50">
                             {n.module}
                           </span>
@@ -1164,7 +1435,7 @@ export default function Attendance() {
 
               {/* Chart Plot Area */}
               <div className="overflow-x-auto scrollbar-thin">
-                <div className="relative pt-6 pb-2 h-68 flex min-w-[500px]">
+                <div className="relative pt-6 pb-2 h-68 flex min-w-[700px]">
                 
                 {/* Y-Axis Labels */}
                 <div className="w-10 flex flex-col justify-between text-xs font-bold text-slate-500 pr-2.5 pb-6 text-right select-none h-full">
@@ -1191,7 +1462,7 @@ export default function Attendance() {
                     const lateHeight = `${Math.min(100, (item.late / chartMaxScale) * 100)}%`;
 
                     return (
-                      <div key={idx} className="flex flex-col items-center gap-2 group relative z-10 w-8">
+                      <div key={idx} className="flex flex-col items-center gap-2 group relative z-10 w-12 shrink-0">
                         {/* Rod Group */}
                         <div className="flex items-end gap-1.5 h-44 w-full justify-center">
                           {/* On-Time Rod */}
@@ -1208,7 +1479,7 @@ export default function Attendance() {
                           />
                         </div>
                         {/* Day Label */}
-                        <span className="text-[10px] font-bold text-slate-500 uppercase select-none mt-1 truncate w-full text-center">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase select-none mt-1 w-max text-center">
                           {item.label}
                         </span>
 
@@ -1236,7 +1507,7 @@ export default function Attendance() {
                     <div className="flex gap-5 overflow-x-auto whitespace-nowrap scrollbar-none w-full">
                       <button
                         onClick={() => setActiveTab('pending')}
-                        className={`text-sm font-extrabold uppercase tracking-wide pb-2 border-b-2 transition-all cursor-pointer bg-transparent border-0 outline-none ${
+                        className={`shrink-0 text-sm font-extrabold uppercase tracking-wide pb-2 border-b-2 transition-all cursor-pointer bg-transparent border-0 outline-none ${
                           activeTab === 'pending'
                             ? 'text-brand-red border-brand-red'
                             : 'text-slate-400 border-transparent hover:text-slate-600'
@@ -1246,7 +1517,7 @@ export default function Attendance() {
                       </button>
                       <button
                         onClick={() => setActiveTab('all_employees')}
-                        className={`text-sm font-extrabold uppercase tracking-wide pb-2 border-b-2 transition-all cursor-pointer bg-transparent border-0 outline-none ${
+                        className={`shrink-0 text-sm font-extrabold uppercase tracking-wide pb-2 border-b-2 transition-all cursor-pointer bg-transparent border-0 outline-none ${
                           activeTab === 'all_employees'
                             ? 'text-brand-red border-brand-red'
                             : 'text-slate-400 border-transparent hover:text-slate-600'
@@ -1256,7 +1527,7 @@ export default function Attendance() {
                       </button>
                       <button
                         onClick={() => setActiveTab('leaves')}
-                        className={`text-sm font-extrabold uppercase tracking-wide pb-2 border-b-2 transition-all cursor-pointer bg-transparent border-0 outline-none ${
+                        className={`shrink-0 text-sm font-extrabold uppercase tracking-wide pb-2 border-b-2 transition-all cursor-pointer bg-transparent border-0 outline-none ${
                           activeTab === 'leaves'
                             ? 'text-brand-red border-brand-red'
                             : 'text-slate-400 border-transparent hover:text-slate-600'
@@ -1269,7 +1540,7 @@ export default function Attendance() {
 
                   <div className="overflow-x-auto min-h-[220px]">
                     {activeTab === 'pending' ? (
-                      <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
+                      <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
                         <thead>
                           <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                             <th className="pb-3">Name</th>
@@ -1344,9 +1615,9 @@ export default function Attendance() {
                             ))
                           )}
                         </tbody>
-                      </table>
+                      </table></div></div>
                     ) : activeTab === 'all_employees' ? (
-                      <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
+                      <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
                         <thead>
                           <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                             <th className="pb-3">Name</th>
@@ -1406,6 +1677,31 @@ export default function Attendance() {
                                       Edit
                                     </button>
                                     <button
+                                      onClick={() => {
+                                        const empId = emp._id || emp.id;
+                                        const log = dailySummary.find(d => d.id === empId);
+                                        if (log) {
+                                          handleOpenQuickEdit(log);
+                                        } else {
+                                          handleOpenQuickEdit({
+                                            id: empId,
+                                            name: emp.name,
+                                            lastName: emp.lastName,
+                                            department: emp.department,
+                                            designation: emp.designation,
+                                            status: 'Absent',
+                                            checkIn: '-',
+                                            checkOut: '-'
+                                          });
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-colors border-0 cursor-pointer outline-none flex items-center gap-1"
+                                      title="Edit Today's Attendance"
+                                    >
+                                      <UserCheck size={12} />
+                                      Edit Log
+                                    </button>
+                                    <button
                                       onClick={() => handleOpenEmployeeTimingModal(emp)}
                                       className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition-colors border-0 cursor-pointer outline-none flex items-center gap-1"
                                       title="Attendance Timing"
@@ -1446,9 +1742,9 @@ export default function Attendance() {
                             ))
                           )}
                         </tbody>
-                      </table>
+                      </table></div></div>
                     ) : activeTab === 'leaves' ? (
-                      <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
+                      <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
                         <thead>
                           <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                             <th className="pb-3">Employee</th>
@@ -1585,7 +1881,7 @@ export default function Attendance() {
                             ))
                           )}
                         </tbody>
-                      </table>
+                      </table></div></div>
                     ) : null}
                   </div>
 
@@ -1605,7 +1901,7 @@ export default function Attendance() {
             {/* Checked-in Logs Card */}
             <div className="bg-white border border-[#E8E6E1] rounded-3xl p-5 shadow-xs space-y-4">
               {/* Sidebar Tabs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 bg-[#FAF9F6] border border-[#E8E6E1] p-1 rounded-xl text-[9px] xl:text-[10px] font-bold text-slate-500 select-none gap-1">
+              <div className="grid grid-cols-2 lg:grid-cols-4 bg-[#FAF9F6] border border-[#E8E6E1] p-1 rounded-xl text-[9px] xl:text-[10px] font-bold text-slate-500 select-none gap-1">
                 <button 
                   onClick={() => setSidebarTab('logged_in')}
                   className={`py-2 rounded-lg text-center cursor-pointer transition-all truncate px-0.5 ${
@@ -1715,7 +2011,7 @@ export default function Attendance() {
                             </span>
                           </div>
                           <button
-                            onClick={() => handleOpenEditModal(log)}
+                            onClick={() => handleOpenQuickEdit(log)}
                             className="text-[9px] font-bold text-slate-400 hover:text-blue-500 flex items-center gap-0.5 cursor-pointer bg-transparent border-0 outline-none"
                             title="Quick Edit Employee"
                           >
@@ -1738,7 +2034,7 @@ export default function Attendance() {
                 </h3>
               </div>
               
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {/* Total Requests */}
                 <div className="p-3.5 bg-slate-50/50 border border-[#E8E6E1] rounded-2xl">
                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Total Requests</span>
@@ -2061,7 +2357,7 @@ export default function Attendance() {
 
                   {/* Daily Report Log Table */}
                   <div className="overflow-x-auto bg-white border border-[#EBEAE6] rounded-2xl shadow-xs">
-                    <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
+                    <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
                       <thead>
                         <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider bg-[#FAF9F6]">
                           <th className="p-4">Date</th>
@@ -2069,7 +2365,7 @@ export default function Attendance() {
                           <th className="p-4">Attendance Status</th>
                           <th className="p-4">Punch-In Time</th>
                           <th className="p-4">Punch-Out Time</th>
-                          <th className="p-4">Remarks</th>
+                          <th className="p-4 text-center">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#EBEAE6]">
@@ -2106,13 +2402,27 @@ export default function Attendance() {
                             </td>
                             <td className="p-4 font-mono text-slate-700 font-bold">{day.checkIn}</td>
                             <td className="p-4 font-mono text-slate-700 font-bold">{day.checkOut}</td>
-                            <td className="p-4 text-slate-500 italic max-w-sm truncate" title={day.remarks}>
-                              {day.remarks}
+                            <td className="p-4 text-center">
+                              <button
+                                onClick={() => handleOpenQuickEdit({
+                                  id: reportEmployeeId,
+                                  name: reportEmployeeInfo?.name,
+                                  lastName: reportEmployeeInfo?.lastName,
+                                  status: day.status === 'Weekend' || day.status === 'Holiday' ? 'Absent' : day.status,
+                                  checkIn: day.checkIn,
+                                  checkOut: day.checkOut
+                                }, day.date)}
+                                className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold hover:bg-indigo-100 transition-colors border-0 cursor-pointer outline-none inline-flex items-center gap-1"
+                                title="Edit Day Attendance"
+                              >
+                                <Edit2 size={10} />
+                                Edit
+                              </button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table></div></div>
                   </div>
                 </>
               )}
@@ -2229,7 +2539,7 @@ export default function Attendance() {
                     </div>
                   ) : (
                     <div className="overflow-x-auto border border-[#EBEAE6] rounded-2xl">
-                      <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
+                      <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
                         <thead>
                           <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider bg-[#FAF9F6]">
                             <th className="p-3">Date</th>
@@ -2308,7 +2618,7 @@ export default function Attendance() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                      </table></div></div>
                     </div>
                   )}
                 </div>
@@ -2973,6 +3283,251 @@ export default function Attendance() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+    
+
+      {/* EMPLOYEE CALENDAR MODAL */}
+      {showEmployeeCalendarModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowEmployeeCalendarModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-3">
+                {reportEmployeeInfo?.profilePicture ? (
+                  <img src={reportEmployeeInfo.profilePicture} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 shadow-sm border-2 border-white">
+                    <User size={18} />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-2">
+                    {reportEmployeeInfo?.name} {reportEmployeeInfo?.lastName}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{reportEmployeeInfo?.designation || 'Employee'}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowEmployeeCalendarModal(false)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-500 flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-red-100">
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto">
+              {reportLoading ? (
+                <div className="py-12 flex justify-center">
+                  <div className="w-8 h-8 rounded-full border-4 border-slate-100 border-t-indigo-600 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800 tracking-tight">Attendance Calendar</h4>
+                    </div>
+                    <select
+                      value={selectedReportMonthKey}
+                      onChange={(e) => setSelectedReportMonthKey(e.target.value)}
+                      className="bg-[#FAF9F6] border border-[#DEDCD8] rounded-xl text-xs font-black text-slate-800 p-2 outline-none cursor-pointer focus:border-slate-400"
+                    >
+                      {reportMonthsList.map(opt => (
+                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div className="bg-white border border-[#EBEAE6] p-3.5 rounded-3xl shadow-xs">
+                    <div className="grid grid-cols-7 gap-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-wider pb-2 mb-2 border-b border-slate-100">
+                      <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                    </div>
+                    <div className="grid grid-cols-7 gap-2 text-center">
+                      {gridCells.map((cell, idx) => {
+                        if (cell.type === 'empty') return <div key={`empty-${idx}`} />;
+                        let colorClass = 'bg-white border border-slate-100 hover:border-slate-300 text-slate-600';
+                        if (cell.status === 'Present') colorClass = 'bg-green-500 text-white font-black shadow-xs border-0';
+                        else if (cell.status === 'Late') colorClass = 'bg-amber-400 text-white font-black shadow-xs border-0';
+                        else if (cell.status === 'Absent') colorClass = 'bg-red-500 text-white font-black shadow-xs border-0';
+                        else if (cell.status === 'Weekend') colorClass = 'bg-slate-50 text-slate-400 border border-slate-200';
+                        else if (cell.status === 'Future') colorClass = 'bg-white border border-dashed border-slate-200 text-slate-300';
+                        else if (cell.status === 'Holiday') colorClass = 'bg-[#8B5CF6] text-white font-black shadow-xs border-0';
+                        else if (cell.status.includes('Leave')) colorClass = 'bg-[#3B82F6] text-white font-black shadow-xs border-0';
+                        
+                        const isSelected = selectedDayDetails?.day === cell.day;
+                        const ringClass = isSelected ? 'ring-2 ring-indigo-600 ring-offset-1' : '';
+                        const todayTextClass = cell.isToday ? 'font-black underline decoration-2' : 'font-extrabold';
+                        
+                        return (
+                          <button
+                            key={`day-${cell.day}`}
+                            onClick={() => handleDayCellClick(cell)}
+                            disabled={cell.status === 'Future'}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs select-none cursor-pointer transition-all active:scale-90 outline-none mx-auto ${colorClass} ${ringClass} ${todayTextClass}`}
+                          >
+                            {cell.day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Day Inspector Card Details */}
+                  {selectedDayDetails ? (
+                    <div className="bg-[#FAF9F6] border border-[#EBEAE6] p-4 rounded-2xl space-y-3 shadow-xs">
+                      {isEditingAttendance ? (
+                        <div className="space-y-3">
+                          <span className="text-xs text-slate-800 font-extrabold">Edit Attendance ({selectedDayDetails.dateLabel})</span>
+                          {editAttendanceError && (
+                            <div className="p-2 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg border border-red-100">{editAttendanceError}</div>
+                          )}
+                          <div className="grid grid-cols-1 gap-2.5">
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block mb-1">Status</span>
+                              <select value={editAttendanceForm.status} onChange={(e) => setEditAttendanceForm({ ...editAttendanceForm, status: e.target.value })} className="w-full bg-white border border-[#DEDCD8] rounded-xl text-xs font-bold text-slate-800 p-2 outline-none">
+                                <option value="Present">Present</option>
+                                <option value="Absent">Absent</option>
+                                <option value="Half Day">Half Day</option>
+                                <option value="Leave">Leave</option>
+                                <option value="Holiday">Holiday</option>
+                                <option value="Late">Late</option>
+                                <option value="On-time">On-time</option>
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <div>
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block mb-1">Check In</span>
+                                <input type="time" value={editAttendanceForm.checkIn} onChange={(e) => setEditAttendanceForm({ ...editAttendanceForm, checkIn: e.target.value })} className="w-full bg-white border border-[#DEDCD8] rounded-xl text-xs font-bold text-slate-800 p-2 outline-none" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block mb-1">Check Out</span>
+                                <input type="time" value={editAttendanceForm.checkOut} onChange={(e) => setEditAttendanceForm({ ...editAttendanceForm, checkOut: e.target.value })} className="w-full bg-white border border-[#DEDCD8] rounded-xl text-xs font-bold text-slate-800 p-2 outline-none" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button onClick={handleCancelEditAttendance} disabled={editAttendanceLoading} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors border border-slate-200 cursor-pointer">Cancel</button>
+                            <button onClick={handleSaveAttendance} disabled={editAttendanceLoading} className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors shadow-sm cursor-pointer">{editAttendanceLoading ? 'Saving...' : 'Save'}</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-800 font-extrabold">{selectedDayDetails.dateLabel}</span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase text-white ${selectedDayDetails.status === 'Present' ? 'bg-green-500' : selectedDayDetails.status === 'Late' ? 'bg-amber-400' : selectedDayDetails.status === 'Absent' ? 'bg-red-500' : selectedDayDetails.status === 'Holiday' ? 'bg-[#8B5CF6]' : selectedDayDetails.status.includes('Leave') ? 'bg-[#3B82F6]' : 'bg-slate-400'}`}>{selectedDayDetails.status}</span>
+                          </div>
+                          {selectedDayDetails.log && selectedDayDetails.log.checkIn && selectedDayDetails.log.checkIn !== '-' ? (
+                            <div className="flex gap-6 text-xs pt-1">
+                              <div><span className="text-[9px] text-slate-400 font-black uppercase block">Punch In</span><strong className="text-slate-800 text-sm font-extrabold mt-0.5 block">{formatTime(selectedDayDetails.log.checkIn)}</strong></div>
+                              <div><span className="text-[9px] text-slate-400 font-black uppercase block">Punch Out</span><strong className="text-slate-800 text-sm font-extrabold mt-0.5 block">{selectedDayDetails.log.checkOut && selectedDayDetails.log.checkOut !== '-' ? formatTime(selectedDayDetails.log.checkOut) : '--:--'}</strong></div>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-400 font-semibold py-1">{selectedDayDetails.status === 'Weekend' ? 'Weekly Off / Weekend' : selectedDayDetails.status === 'Holiday' ? 'Declared Holiday' : selectedDayDetails.status.includes('Leave') ? 'Approved Leave' : 'No attendance logged.'}</p>
+                          )}
+                          
+                          {selectedDayDetails.status !== 'Holiday' && (
+                            <div className="pt-2">
+                              <button onClick={handleEditAttendanceClick} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2">
+                                <Edit2 size={14} /> Edit Attendance
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+    
+
+      {/* QUICK EDIT ATTENDANCE MODAL */}
+      {showQuickEditModal && quickEditLog && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowQuickEditModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 shadow-sm border-2 border-white">
+                  <UserCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-2">
+                    Quick Edit
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{quickEditLog.name} {quickEditLog.lastName}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowQuickEditModal(false)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-500 flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-red-100 outline-none">
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              {quickEditError && (
+                <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl border border-red-100">
+                  {quickEditError}
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block mb-1.5">Today's Status</span>
+                  <select 
+                    value={quickEditForm.status} 
+                    onChange={(e) => setQuickEditForm({ ...quickEditForm, status: e.target.value })} 
+                    className="w-full bg-white border border-[#DEDCD8] rounded-xl text-xs font-bold text-slate-800 p-2.5 outline-none focus:border-indigo-400"
+                  >
+                    <option value="Present">Present (On-time)</option>
+                    <option value="Late">Late</option>
+                    <option value="Half Day">Half Day</option>
+                    <option value="Absent">Absent</option>
+                    <option value="Leave">Leave</option>
+                    <option value="Paid Leave">Paid Leave</option>
+                    <option value="Unpaid Leave">Unpaid Leave</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block mb-1.5">Check In</span>
+                    <input 
+                      type="time" 
+                      value={quickEditForm.checkIn} 
+                      onChange={(e) => setQuickEditForm({ ...quickEditForm, checkIn: e.target.value })} 
+                      className="w-full bg-white border border-[#DEDCD8] rounded-xl text-xs font-bold text-slate-800 p-2.5 outline-none focus:border-indigo-400" 
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block mb-1.5">Check Out</span>
+                    <input 
+                      type="time" 
+                      value={quickEditForm.checkOut} 
+                      onChange={(e) => setQuickEditForm({ ...quickEditForm, checkOut: e.target.value })} 
+                      className="w-full bg-white border border-[#DEDCD8] rounded-xl text-xs font-bold text-slate-800 p-2.5 outline-none focus:border-indigo-400" 
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-2">
+              <button 
+                onClick={() => setShowQuickEditModal(false)} 
+                disabled={quickEditLoading} 
+                className="flex-1 py-2.5 bg-white hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors border border-[#DEDCD8] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveQuickEdit} 
+                disabled={quickEditLoading} 
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors shadow-sm cursor-pointer border-0"
+              >
+                {quickEditLoading ? 'Saving...' : 'Save Today'}
+              </button>
+            </div>
           </div>
         </div>
       )}

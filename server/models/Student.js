@@ -42,6 +42,27 @@ const StudentSchema = new mongoose.Schema(
         message: (props) => `${props.value} is not a valid mobile number!`,
       },
     },
+    // Alternate contact number (Optional)
+    alternateNumber: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function (v) {
+          if (!v) return true; // Optional
+          return /^\+?[0-9]{10,14}$/.test(v);
+        },
+        message: (props) => `${props.value} is not a valid mobile number!`,
+      },
+    },
+    // Centre Reference
+    centreReference: {
+      type: String,
+      enum: {
+        values: ['Google', 'Site', 'AI', 'Friend', 'Old Student', 'Company', 'Instagram', 'YouTube', 'Family', ''],
+        message: '{VALUE} is not a valid centre reference',
+      },
+      trim: true,
+    },
     // Unique contact email address with email format validation
     email: {
       type: String,
@@ -63,6 +84,15 @@ const StudentSchema = new mongoose.Schema(
       trim: true,
     },
     // Course enrolled in
+    dob: {
+      type: Date,
+      default: null,
+    },
+    courseDuration: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     course: {
       type: String,
       required: [true, 'Target academic course is required'],
@@ -114,6 +144,23 @@ const StudentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
+    },
+    // Photographs
+    studentPhotograph: {
+      type: String,
+    },
+    idType: {
+      type: String,
+    },
+    idNumber: {
+      type: String,
+    },
+    idDocumentImage: {
+      type: String,
+    },
+    idDocumentPhotos: {
+      type: [String],
+      default: [],
     },
   },
   { 

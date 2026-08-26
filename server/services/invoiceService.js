@@ -12,7 +12,7 @@ class InvoiceService {
    * @param {Object} queryParams - Search terms, status filters, page indices.
    */
   async listInvoices(queryParams) {
-    const { search, status, dateFilter, page = 1, limit = 20 } = queryParams;
+    const { search, status, dateFilter, exactDate, page = 1, limit = 20 } = queryParams;
     const query = {};
 
     // 1. Status Filter
@@ -20,9 +20,13 @@ class InvoiceService {
       query.status = status.toUpperCase();
     }
 
-    // 2. Date Filters (Today, This Week, This Month)
+    // 2. Date Filters (Today, This Week, This Month, Exact Date)
     const now = new Date();
-    if (dateFilter === 'today') {
+    if (exactDate) {
+      const start = new Date(exactDate); start.setHours(0,0,0,0);
+      const end = new Date(exactDate); end.setHours(23,59,59,999);
+      query.issueDate = { $gte: start, $lte: end };
+    } else if (dateFilter === 'today') {
       const start = new Date(now); start.setHours(0,0,0,0);
       const end = new Date(now); end.setHours(23,59,59,999);
       query.issueDate = { $gte: start, $lte: end };

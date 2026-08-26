@@ -86,11 +86,9 @@ const FeesManagement = () => {
 
   // Nav Items config
   const navItems = [
+    { id: 'enrollment', name: 'Manual Enrollment', Icon: UserPlus },
     { id: 'dashboard', name: 'Dashboard', Icon: LayoutDashboard },
     { id: 'students', name: 'Students', Icon: Users },
-    { id: 'student-profile', name: 'Student Profile', Icon: User },
-    { id: 'enrollment', name: 'Manual Enrollment', Icon: UserPlus },
-    { id: 'collect-payment', name: 'Payments', Icon: CreditCard },
     { id: 'payments-history', name: 'Payment History', Icon: History },
     { id: 'invoices', name: 'Invoices', Icon: FileText },
     { id: 'receipts', name: 'Receipts', Icon: Receipt },
@@ -150,7 +148,12 @@ const FeesManagement = () => {
                   }`}
                 >
                   <item.Icon size={15} />
-                  <span>{item.name}</span>
+                  <span style={{ 
+                    fontWeight: item.id === 'enrollment' ? 900 : undefined,
+                    fontSize: item.id === 'enrollment' ? '12.5px' : undefined
+                  }}>
+                    {item.name}
+                  </span>
                 </button>
               );
             })}

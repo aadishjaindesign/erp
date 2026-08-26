@@ -63,7 +63,7 @@ const StudentLedgerView = ({ ledgerData, formatDate, formatINR }) => {
           <span>Installment Billing Schedule</span>
         </h4>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
+          <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
             <thead>
               <tr className="border-b border-[#EBEAE6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                 <th className="pb-3">Installment No</th>
@@ -86,7 +86,7 @@ const StudentLedgerView = ({ ledgerData, formatDate, formatINR }) => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
 
@@ -97,7 +97,7 @@ const StudentLedgerView = ({ ledgerData, formatDate, formatINR }) => {
           <span>Voucher Collection Logs</span>
         </h4>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
+          <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
             <thead>
               <tr className="border-b border-[#EBEAE6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                 <th className="pb-3">Transaction ID</th>
@@ -125,7 +125,7 @@ const StudentLedgerView = ({ ledgerData, formatDate, formatINR }) => {
                 </tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </div>

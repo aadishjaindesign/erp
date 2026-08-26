@@ -153,7 +153,7 @@ const DatePicker = ({
           type="date"
           value={toIsoFormat(value)}
           onChange={handleCalendarPickerChange}
-          className="absolute opacity-0 pointer-events-none w-0 h-0 -z-10"
+          className="absolute inset-0 opacity-0 pointer-events-none w-full h-full -z-10"
           tabIndex={-1}
         />
       </div>

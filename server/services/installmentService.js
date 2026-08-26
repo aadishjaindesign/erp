@@ -23,17 +23,26 @@ class InstallmentService {
     }
 
     const installments = [];
-    const baseDate = new Date(feePlan.firstDueDate);
-
     for (let i = 1; i <= feePlan.numberOfInstallments; i++) {
-      // Generate monthly date increments
-      const dueDate = i === 1 ? baseDate : addMonths(baseDate, i - 1);
-
-      // Financial rounding offset adjustment on last installment
+      let dueDate = new Date(feePlan.firstDueDate);
+      dueDate.setMonth(dueDate.getMonth() + (i - 1));
+      
       let amount = feePlan.installmentAmount;
-      if (i === feePlan.numberOfInstallments) {
-        const precedingInstallmentsSum = feePlan.installmentAmount * (feePlan.numberOfInstallments - 1);
-        amount = feePlan.totalFees - precedingInstallmentsSum;
+      
+      if (advanceAmount > 0 && advanceAmount < feePlan.totalFees && feePlan.numberOfInstallments > 1) {
+        if (i === 1) {
+          amount = advanceAmount;
+        } else if (i === feePlan.numberOfInstallments) {
+          // Last installment covers any rounding difference
+          const precedingInstallmentsSum = advanceAmount + (feePlan.installmentAmount * (feePlan.numberOfInstallments - 2));
+          amount = feePlan.totalFees - precedingInstallmentsSum;
+        }
+      } else {
+        if (i === feePlan.numberOfInstallments) {
+          // Last installment covers any rounding difference
+          const precedingInstallmentsSum = feePlan.installmentAmount * (feePlan.numberOfInstallments - 1);
+          amount = feePlan.totalFees - precedingInstallmentsSum;
+        }
       }
 
       // Prevent 0 or negative installment amounts
