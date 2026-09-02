@@ -500,21 +500,17 @@ const Invoices = () => {
                   <li>Subject to Jaipur, Rajasthan jurisdiction only.</li>
                 </ol>
               </div>
-              <div className="flex gap-4 items-end relative pb-2">
-                {/* SVG Seal Simulation */}
-                <div className="w-16 h-16 rounded-full border border-gray-400 flex items-center justify-center text-center p-1 text-[5px] text-gray-500 relative opacity-60">
-                  <div className="absolute inset-1 rounded-full border border-dashed border-gray-300"></div>
-                  <div className="font-bold">
-                    JAINS COMPUTER<br />JHOTWARA, JAIPUR
+                <div className="flex gap-6 items-end relative pb-2">
+                  {/* Official Stamp */}
+                  <img src="/Jains Computer Stamp.png" alt="Seal" className="w-[80px] h-[80px] object-contain mix-blend-multiply opacity-90" onError={(e) => e.target.style.display = 'none'} />
+                  
+                  <div className="text-center w-32 flex flex-col items-center">
+                    <img src="/AuthSingh.jpeg" className="h-[45px] object-contain mix-blend-multiply mb-1" alt="Signature" onError={(e) => e.target.style.display = 'none'} />
+                    <div className="w-full border-t-[1.5px] border-black mb-1.5"></div>
+                    <div className="text-[12px] font-bold text-black leading-none">Sanmati Jain</div>
+                    <div className="text-[10px] font-medium text-gray-700 leading-none mt-1">Director</div>
                   </div>
                 </div>
-                <div className="text-center w-28 flex flex-col items-center">
-                  <img src="/AuthSingh.jpeg" className="h-10 mix-blend-multiply mb-1" alt="Signature" onError={(e) => e.target.style.display = 'none'} />
-                  <div className="w-full border-t border-black mb-1"></div>
-                  <div className="text-[11px] font-bold text-black leading-none">Aadish Jain</div>
-                  <div className="text-[9px] text-black leading-none mt-1">Director</div>
-                </div>
-              </div>
             </div>
 
           </div>
