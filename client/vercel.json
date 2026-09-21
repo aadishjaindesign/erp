@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/:match*",
-      "destination": "https://cms.jainscomputer.com/api/:match*"
+      "destination": "https://erp-fiya.onrender.com/api/:match*"
     },
     {
       "source": "/uploads/:match*",
-      "destination": "https://cms.jainscomputer.com/uploads/:match*"
+      "destination": "https://erp-fiya.onrender.com/uploads/:match*"
     },
     {
       "source": "/(.*)",

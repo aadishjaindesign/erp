@@ -1,4 +1,6 @@
 const Certificate = require('../../models/Certificate');
+const Student = require('../../models/Student');
+const FeePlan = require('../../models/FeePlan');
 
 // @desc    Create a new certificate
 // @route   POST /api/certificates
@@ -80,10 +82,25 @@ exports.createCertificate = async (req, res, next) => {
 // @access  Private (Admin)
 exports.getCertificates = async (req, res, next) => {
   try {
-    const certificates = await Certificate.find().sort({ createdAt: -1 });
+    const certificates = await Certificate.find().sort({ createdAt: -1 }).lean();
+    
+    // Attach fee payment status to each certificate
+    const enhancedCertificates = await Promise.all(certificates.map(async (cert) => {
+      let isFeesPaid = false;
+      const student = await Student.findOne({ studentId: cert.enrollmentNumber });
+      
+      if (student) {
+        const feePlan = await FeePlan.findOne({ studentId: student._id });
+        if (feePlan && feePlan.status === 'PAID') {
+          isFeesPaid = true;
+        }
+      }
+      return { ...cert, isFeesPaid };
+    }));
+
     return res.status(200).json({
       success: true,
-      data: certificates
+      data: enhancedCertificates
     });
   } catch (err) {
     next(err);
@@ -108,7 +125,9 @@ exports.updateCertificate = async (req, res, next) => {
       duration,
       internship,
       internshipDuration,
-      issueDate
+      issueDate,
+      isDigitalRegistered,
+      isPhysicalCopyGiven
     } = req.body;
 
     // Check duplicate if enrollment number changes
@@ -127,6 +146,9 @@ exports.updateCertificate = async (req, res, next) => {
     if (internship) certificate.internship = internship;
     if (internshipDuration !== undefined) certificate.internshipDuration = internshipDuration.trim();
     if (issueDate) certificate.issueDate = issueDate.trim();
+    
+    if (isDigitalRegistered !== undefined) certificate.isDigitalRegistered = isDigitalRegistered;
+    if (isPhysicalCopyGiven !== undefined) certificate.isPhysicalCopyGiven = isPhysicalCopyGiven;
 
     await certificate.save();
 

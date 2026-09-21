@@ -11,6 +11,7 @@ import { formatDate } from '../../../utils/dateUtils';
 export default function CertificateManagement() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('list'); // 'list' or 'add'
+  const [feeStatusTab, setFeeStatusTab] = useState('active'); // 'active' (fees paid) or 'pending' (fees pending)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -149,14 +150,37 @@ export default function CertificateManagement() {
     }
   };
 
-  // Search filter
+  // Toggle delivery statuses
+  const handleToggleDelivery = async (item, field) => {
+    try {
+      const updatedValue = !item[field];
+      const res = await certificateApi.updateCertificate(item._id, {
+        ...item,
+        [field]: updatedValue
+      });
+      if (res.success) {
+        setCertificates(prev => prev.map(c => c._id === item._id ? { ...c, [field]: updatedValue } : c));
+      }
+    } catch (err) {
+      console.error('Failed to update delivery status:', err);
+    }
+  };
+
+  // Search and Fee Status filter
   const filtered = useMemo(() => {
-    return certificates.filter((c) =>
+    let result = certificates.filter((c) =>
       c.enrollmentNumber?.toLowerCase().includes(search.toLowerCase()) ||
       c.studentName?.toLowerCase().includes(search.toLowerCase()) ||
       c.course?.toLowerCase().includes(search.toLowerCase())
     );
-  }, [certificates, search]);
+    
+    if (feeStatusTab === 'active') {
+      result = result.filter(c => c.isFeesPaid);
+    } else {
+      result = result.filter(c => !c.isFeesPaid);
+    }
+    return result;
+  }, [certificates, search, feeStatusTab]);
 
   return (
     <div className="space-y-8 p-4 md:p-8 animate-fade-in text-slate-800 font-sans pb-10">
@@ -229,6 +253,22 @@ export default function CertificateManagement() {
       {activeTab === 'list' ? (
         <div className="space-y-6">
           
+          {/* Fee Status Tabs */}
+          <div className="flex bg-slate-100 p-1 rounded-xl w-max border border-slate-200">
+            <button 
+              onClick={() => setFeeStatusTab('active')}
+              className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${feeStatusTab === 'active' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Active (Fees Paid)
+            </button>
+            <button 
+              onClick={() => setFeeStatusTab('pending')}
+              className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${feeStatusTab === 'pending' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Pending (Fees Pending)
+            </button>
+          </div>
+
           {/* List Toolbar / Search */}
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
             <div className="relative w-full max-w-md">
@@ -262,6 +302,7 @@ export default function CertificateManagement() {
                     <th className="p-4">Internship</th>
                     <th className="p-4">Internship Duration</th>
                     <th className="p-4">Certificate Issue Date</th>
+                    <th className="p-4">Delivery Status</th>
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -305,6 +346,22 @@ export default function CertificateManagement() {
                         </td>
                         <td className="p-4 text-slate-550">{item.internshipDuration || '-'}</td>
                         <td className="p-4 font-bold text-slate-700">{formatDate(item.issueDate)}</td>
+                        <td className="p-4">
+                          <div className="flex flex-col gap-1.5">
+                            <button
+                              onClick={() => handleToggleDelivery(item, 'isDigitalRegistered')}
+                              className={`text-[9px] font-bold px-2 py-1 rounded transition-colors ${item.isDigitalRegistered ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                            >
+                              Digital Register
+                            </button>
+                            <button
+                              onClick={() => handleToggleDelivery(item, 'isPhysicalCopyGiven')}
+                              className={`text-[9px] font-bold px-2 py-1 rounded transition-colors ${item.isPhysicalCopyGiven ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                            >
+                              Physical Copy
+                            </button>
+                          </div>
+                        </td>
                         <td className="p-4 text-right">
                           <div className="inline-flex gap-1.5">
                             <button

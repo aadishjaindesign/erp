@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   User, Send, RotateCcw, Save, Search,
-  Phone, CalendarDays, BookOpen, Users, Link2
+  Phone, CalendarDays, BookOpen, Users, Filter
 } from 'lucide-react';
 import { formatDate } from '../../../utils/dateUtils';
 import DatePicker from '../../FeesManagement/components/DatePicker';
@@ -15,10 +15,15 @@ const PREDEFINED_COURSES = [
   'RS-CIT', 'PGDCA', 'CCC', 'COPA',
 ];
 
-const REFERENCE_SOURCES = [
-  'Walk-in', 'Phone Call', 'WhatsApp', 'Newspaper Ad', 'Pamphlet / Flyer',
-  'Banner / Hoarding', 'Friend / Referral', 'School / College Visit',
-  'Exhibition / Event', 'Social Media (Organic)', 'Other',
+const LEAD_SOURCES = [
+  'YouTube', 'Instagram', 'Google', 'Walk-In', 'Friend / Referral', 'Other'
+];
+
+const LEAD_TYPES = [
+  { label: 'Cold', color: 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-200' },
+  { label: 'Warm', color: 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200' },
+  { label: 'Hot', color: 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200' },
+  { label: 'Sale', color: 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' }
 ];
 
 const COUNSELLORS = [
@@ -28,10 +33,11 @@ const COUNSELLORS = [
 const EMPTY_FORM = {
   name: '',
   contact: '',
-  reference: '',
+  source: 'Walk-In',
   course: '',
   counsellor: 'Khushi Soni',
   date: new Date().toISOString().slice(0, 10),
+  leadType: 'Cold',
 };
 
 export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
@@ -40,10 +46,11 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
       return {
         name: editingLead.name || '',
         contact: editingLead.contact || '',
-        reference: editingLead.reference || '',
+        source: editingLead.source || 'Walk-In',
         course: editingLead.course || '',
         counsellor: editingLead.counsellor || '',
         date: editingLead.date || new Date().toISOString().slice(0, 10),
+        leadType: editingLead.leadType || 'Cold',
       };
     }
     return { ...EMPTY_FORM };
@@ -51,22 +58,16 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
 
   const [courseSearch, setCourseSearch] = useState('');
   const [showCourseDropdown, setShowCourseDropdown] = useState(false);
-  const [refSearch, setRefSearch] = useState('');
-  const [showRefDropdown, setShowRefDropdown] = useState(false);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
   const filteredCourses = PREDEFINED_COURSES.filter(c =>
     c.toLowerCase().includes((form.course || courseSearch).toLowerCase())
   );
-  const filteredRefs = REFERENCE_SOURCES.filter(r =>
-    r.toLowerCase().includes((form.reference || refSearch).toLowerCase())
-  );
 
   const handleReset = () => {
     setForm({ ...EMPTY_FORM });
     setCourseSearch('');
-    setRefSearch('');
   };
 
   const handleSubmit = () => {
@@ -74,15 +75,16 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
     onSubmit({
       name: form.name.trim(),
       contact: form.contact.trim(),
-      reference: form.reference || 'Walk-in',
+      source: form.source || 'Walk-In',
       course: form.course || 'Not Specified',
       counsellor: form.counsellor || 'Khushi Soni',
       date: form.date,
+      leadType: form.leadType || 'Cold'
     });
     if (!editingLead) handleReset();
   };
 
-  // ── Shared class tokens (identical to AdmissionForm) ──────────
+  // Shared class tokens
   const inputCls = "w-full bg-[#FAFAF9] border border-[#E3E1DC] rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#E31C1C] focus:ring-1 focus:ring-[#E31C1C]/20 transition-all";
   const labelCls = "block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1.5";
   const sectionHeaderCls = "flex items-center gap-2 text-xs font-black text-slate-700 uppercase tracking-wider mb-5";
@@ -90,18 +92,34 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
   return (
     <div className="relative">
 
-      {/* ── Title Header ──────────────────────────────── */}
-      <div className="bg-white border border-[#E8E6E1] rounded-2xl px-6 py-3.5 mb-5 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-black uppercase tracking-widest">
-          <Users size={13} className="text-[#E31C1C]" />
-          NEW OFFLINE LEAD ENTRY
+      {/* Title Header with Lead Source Filter */}
+      <div className="bg-white border border-[#E8E6E1] rounded-2xl p-4 mb-5 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 font-black uppercase tracking-widest shrink-0">
+            <Users size={13} className="text-[#E31C1C]" />
+            NEW OFFLINE LEAD ENTRY
+          </div>
+          
+          <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar">
+            <Filter size={13} className="text-slate-400 shrink-0 mr-1" />
+            {LEAD_SOURCES.map(src => (
+              <button
+                key={src}
+                onClick={() => set('source', src)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-colors border ${
+                  form.source === src 
+                    ? 'bg-[#E31C1C] text-white border-[#E31C1C]' 
+                    : 'bg-[#FAFAF9] text-slate-500 border-[#E8E6E1] hover:bg-slate-50'
+                }`}
+              >
+                {src}
+              </button>
+            ))}
+          </div>
         </div>
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-          {formatDate(new Date())}
-        </span>
       </div>
 
-      {/* ── Form Card ─────────────────────────────────── */}
+      {/* Form Card */}
       <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 shadow-sm">
         <div className={sectionHeaderCls}>
           <User size={15} className="text-[#E31C1C]" />
@@ -137,44 +155,7 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
             <p className="text-[10px] text-slate-400 mt-1 font-semibold">Without country prefix (e.g. 09876543210)</p>
           </div>
 
-          {/* 3. Reference / Source */}
-          <div className="relative">
-            <label className={labelCls}>Reference / Source <span className="text-[#E31C1C]">*</span></label>
-            <div className="relative">
-              <Link2 size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                className={`${inputCls} pl-8 pr-10`}
-                placeholder="How did the student learn about us?"
-                value={form.reference || refSearch}
-                onFocus={() => setShowRefDropdown(true)}
-                onChange={e => {
-                  setRefSearch(e.target.value);
-                  set('reference', '');
-                  setShowRefDropdown(true);
-                }}
-              />
-              <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            </div>
-            {showRefDropdown && (
-              <div className="absolute left-0 right-0 mt-1 bg-white border border-[#E3E1DC] rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
-                {filteredRefs.map(r => (
-                  <div
-                    key={r}
-                    className="px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-[#E31C1C] cursor-pointer transition-colors"
-                    onClick={() => {
-                      set('reference', r);
-                      setRefSearch('');
-                      setShowRefDropdown(false);
-                    }}
-                  >
-                    {r}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 4. Course */}
+          {/* 3. Course */}
           <div className="relative">
             <label className={labelCls}>Course Interested In <span className="text-[#E31C1C]">*</span></label>
             <div className="relative">
@@ -211,6 +192,26 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
             )}
           </div>
 
+          {/* 4. Lead Type (Replacement for Reference) */}
+          <div>
+            <label className={labelCls}>Lead Type <span className="text-[#E31C1C]">*</span></label>
+            <div className="flex items-center gap-2 mt-1">
+              {LEAD_TYPES.map(type => (
+                <button
+                  key={type.label}
+                  onClick={() => set('leadType', type.label)}
+                  className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                    form.leadType === type.label 
+                      ? type.color 
+                      : 'bg-[#FAFAF9] text-slate-500 border-[#E8E6E1] hover:bg-slate-50'
+                  }`}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* 5. Counsellor */}
           <div>
             <label className={labelCls}>Assigned Counsellor</label>
@@ -236,7 +237,7 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
         </div>
       </div>
 
-      {/* ── Footer Bar (identical style to AdmissionForm) ─────── */}
+      {/* Footer Bar */}
       <div className="sticky bottom-0 mt-6 -mx-0 bg-white border-t border-[#E3E1DC] px-6 py-4 flex items-center justify-between z-10 rounded-b-2xl">
         <div className="flex items-center gap-3">
           {onCancel ? (

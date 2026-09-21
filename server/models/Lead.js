@@ -37,6 +37,10 @@ const leadSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    leadType: {
+      type: String,
+      default: "Cold", // Cold, Warm, Hot, Sale
+    },
   },
   { timestamps: true }
 );

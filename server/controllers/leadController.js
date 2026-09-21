@@ -1,6 +1,7 @@
 const Lead = require('../models/Lead');
 const Admission = require('../models/Admission');
 const Student = require('../models/Student');
+const Certificate = require('../models/Certificate');
 const studentService = require('../services/studentService');
 const feePlanService = require('../services/feePlanService');
 const paymentService = require('../services/paymentService');
@@ -232,6 +233,18 @@ const admitStudent = async (req, res) => {
   try {
     const admissionData = req.body;
     
+    // Verify if the user exists in Lead based on phone or email
+    const existingLead = await Lead.findOne({
+      $or: [
+        { phone: admissionData.contact },
+        { email: admissionData.email }
+      ]
+    });
+
+    if (!existingLead) {
+      return res.status(400).json({ success: false, message: "User is not in the Leads system. Admission is only allowed for existing leads." });
+    }
+
     // 1. Calculate and validate remaining fees
     const totalFees = Number(admissionData.totalFees) || 0;
     const advancePaid = Number(admissionData.advancePaid) || 0;
@@ -379,6 +392,25 @@ const admitStudent = async (req, res) => {
     } else {
        // If student already exists in Fees Management, we don't recreate the student or fee plan.
        // The user requested to link/update existing. In this case, we just return success as Lead Admission is saved.
+    }
+    
+    // Auto-create Certificate Management Record
+    try {
+      const existingCertificate = await Certificate.findOne({ enrollmentNumber: admissionData.enrollmentNo });
+      if (!existingCertificate) {
+        await Certificate.create({
+          studentName: admissionData.fullName,
+          enrollmentNumber: admissionData.enrollmentNo,
+          course: (admissionData.courses && admissionData.courses.length > 0) ? admissionData.courses.join(', ') : 'Unknown',
+          courseIssueDate: new Date().toISOString().split('T')[0],
+          duration: admissionData.courseDuration || 'N/A',
+          internship: 'No',
+          internshipDuration: '',
+          issueDate: new Date().toISOString().split('T')[0]
+        });
+      }
+    } catch (certError) {
+      console.warn("❌ Failed to auto-create Certificate record:", certError.message);
     }
     
     res.status(201).json({

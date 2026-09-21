@@ -424,7 +424,7 @@ export default function LeadDashboard() {
                 : 'text-slate-450 border-transparent hover:text-slate-700'
             }`}
           >
-            Online Leads
+            Website Leads
           </button>
           <button 
             onClick={() => setActiveTab('offline')}

@@ -35,6 +35,14 @@ const CertificateSchema = new mongoose.Schema(
     issueDate: {
       type: String,
       required: [true, 'Please specify certificate issue date']
+    },
+    isDigitalRegistered: {
+      type: Boolean,
+      default: false
+    },
+    isPhysicalCopyGiven: {
+      type: Boolean,
+      default: false
     }
   },
   { timestamps: true }
