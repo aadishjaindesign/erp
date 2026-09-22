@@ -22,8 +22,9 @@ export const adminAttendanceApi = {
     return data;
   },
 
-  getAttendanceStats: async () => {
-    const { data } = await axiosInstance.get('/attendance/stats');
+  getAttendanceStats: async (date) => {
+    const params = date ? { date } : {};
+    const { data } = await axiosInstance.get('/attendance/stats', { params });
     return data;
   },
 

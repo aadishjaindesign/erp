@@ -40,4 +40,5 @@ const AttendanceSchema = new mongoose.Schema(
 AttendanceSchema.index({ employee: 1, date: 1 });
 AttendanceSchema.index({ date: 1 });
 
-module.exports = mongoose.model('Attendance', AttendanceSchema);
+const attendanceDb = require('../config/attendanceDb');
+module.exports = attendanceDb.model('Attendance', AttendanceSchema);

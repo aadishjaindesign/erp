@@ -36,7 +36,8 @@ exports.createCertificate = async (req, res, next) => {
       duration: duration.trim(),
       internship,
       internshipDuration: internshipDuration ? internshipDuration.trim() : '',
-      issueDate: issueDate.trim()
+      issueDate: issueDate.trim(),
+      status: req.body.status || 'Active'
     });
 
     // Enqueue certificate issued notification via BullMQ
@@ -95,6 +96,12 @@ exports.getCertificates = async (req, res, next) => {
           isFeesPaid = true;
         }
       }
+      
+      // For old data or manually activated certificates, if it's active, treat fees as paid
+      if (cert.status === 'Active') {
+        isFeesPaid = true;
+      }
+
       return { ...cert, isFeesPaid };
     }));
 
@@ -149,6 +156,7 @@ exports.updateCertificate = async (req, res, next) => {
     
     if (isDigitalRegistered !== undefined) certificate.isDigitalRegistered = isDigitalRegistered;
     if (isPhysicalCopyGiven !== undefined) certificate.isPhysicalCopyGiven = isPhysicalCopyGiven;
+    if (req.body.status) certificate.status = req.body.status;
 
     await certificate.save();
 
@@ -196,13 +204,14 @@ exports.verifyCertificate = async (req, res, next) => {
     // Exact search or normalized search
     const cleanEnroll = enrollmentNumber.trim().toUpperCase();
     const certificate = await Certificate.findOne({
-      enrollmentNumber: { $regex: new RegExp('^' + cleanEnroll.replace(/\//g, '\\/') + '$', 'i') }
+      enrollmentNumber: { $regex: new RegExp('^' + cleanEnroll.replace(/\//g, '\\/') + '$', 'i') },
+      status: 'Active'
     });
 
     if (!certificate) {
       return res.status(404).json({
         success: false,
-        message: 'No certificate found matching the provided enrollment number.'
+        message: 'No active certificate found matching the provided enrollment number.'
       });
     }
 
@@ -213,5 +222,36 @@ exports.verifyCertificate = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+// @desc    Verify a certificate by year and number
+// @route   GET /api/certificates/verify/:year/:number
+// @access  Public
+exports.verifyCertificateByParams = async (req, res, next) => {
+  try {
+    const { year, number } = req.params;
+    const fullYear = year.length === 2 ? `20${year}` : year;
+    const enrollment = `RJ/${fullYear}/${number}`;
+
+    const certificate = await Certificate.findOne({
+      enrollmentNumber: { $regex: enrollment, $options: 'i' },
+      status: 'Active'
+    });
+
+    if (!certificate) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active certificate found matching the provided enrollment details.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Certificate verified successfully. ✅',
+      data: certificate
+    });
+  } catch (error) {
+    next(error);
   }
 };

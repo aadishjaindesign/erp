@@ -399,7 +399,8 @@ exports.getDailyAttendanceSummary = async (req, res, next) => {
 exports.getAttendanceStats = async (req, res, next) => {
   try {
     const stats = [];
-    const today = new Date();
+    const { date } = req.query;
+    const today = date ? new Date(date) : new Date();
     
     // Baseline mock values matching screenshot ratios to show when database is empty
     const mockBaselines = [
@@ -418,7 +419,7 @@ exports.getAttendanceStats = async (req, res, next) => {
     const totalDBLogsCount = await Attendance.countDocuments();
 
     // Calculate overall 10 days range boundary in IST
-    const tenDaysAgo = new Date();
+    const tenDaysAgo = new Date(today);
     tenDaysAgo.setDate(today.getDate() - 9);
     const { start: startDate } = getIstTodayBoundaries(tenDaysAgo);
     const { end: endDate } = getIstTodayBoundaries(today);

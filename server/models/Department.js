@@ -27,4 +27,5 @@ const DepartmentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model('Department', DepartmentSchema);
+const attendanceDb = require('../config/attendanceDb');
+module.exports = attendanceDb.model('Department', DepartmentSchema);

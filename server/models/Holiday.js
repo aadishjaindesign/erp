@@ -15,4 +15,5 @@ const HolidaySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model('Holiday', HolidaySchema);
+const attendanceDb = require('../config/attendanceDb');
+module.exports = attendanceDb.model('Holiday', HolidaySchema);

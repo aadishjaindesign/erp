@@ -43,6 +43,11 @@ const CertificateSchema = new mongoose.Schema(
     isPhysicalCopyGiven: {
       type: Boolean,
       default: false
+    },
+    status: {
+      type: String,
+      enum: ['Pending', 'Active'],
+      default: 'Pending'
     }
   },
   { timestamps: true }

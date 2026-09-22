@@ -29,6 +29,7 @@ export default function CertificateManagement() {
   const [internship, setInternship] = useState('');
   const [internshipDuration, setInternshipDuration] = useState('');
   const [issueDate, setIssueDate] = useState('');
+  const [status, setStatus] = useState('Active');
 
   // Edit certificate state
   const [editItem, setEditItem] = useState(null);
@@ -75,7 +76,8 @@ export default function CertificateManagement() {
         duration,
         internship,
         internshipDuration,
-        issueDate
+        issueDate,
+        status
       });
 
       if (res.success) {
@@ -89,6 +91,7 @@ export default function CertificateManagement() {
         setInternship('');
         setInternshipDuration('');
         setIssueDate('');
+        setStatus('Active');
         fetchCertificates();
         
         // Switch to list tab after short delay
@@ -302,7 +305,7 @@ export default function CertificateManagement() {
                     <th className="p-4">Internship</th>
                     <th className="p-4">Internship Duration</th>
                     <th className="p-4">Certificate Issue Date</th>
-                    <th className="p-4">Delivery Status</th>
+                    <th className="p-4">Visibility & Delivery</th>
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -348,6 +351,9 @@ export default function CertificateManagement() {
                         <td className="p-4 font-bold text-slate-700">{formatDate(item.issueDate)}</td>
                         <td className="p-4">
                           <div className="flex flex-col gap-1.5">
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded w-fit ${item.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-brand-red border border-rose-100'}`}>
+                              {item.status === 'Active' ? 'Site: Visible' : 'Site: Hidden'}
+                            </span>
                             <button
                               onClick={() => handleToggleDelivery(item, 'isDigitalRegistered')}
                               className={`text-[9px] font-bold px-2 py-1 rounded transition-colors ${item.isDigitalRegistered ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
@@ -518,6 +524,21 @@ export default function CertificateManagement() {
                 />
               </div>
 
+              {/* Status Toggle */}
+              <div className="space-y-1.5 flex flex-col sm:col-span-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Website Visibility</label>
+                <div className="flex items-center gap-3 bg-[#FAF9F6] border border-[#DEDCD8] rounded-xl p-3 shadow-xs">
+                  <span className={`text-xs font-bold ${status === 'Pending' ? 'text-slate-800' : 'text-slate-400'}`}>Hidden</span>
+                  <div 
+                    onClick={() => setStatus(status === 'Active' ? 'Pending' : 'Active')}
+                    className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors ${status === 'Active' ? 'bg-[#E31C1C]' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full shadow-sm transition-transform ${status === 'Active' ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                  </div>
+                  <span className={`text-xs font-bold ${status === 'Active' ? 'text-[#E31C1C]' : 'text-slate-400'}`}>Visible on Website (Active)</span>
+                </div>
+              </div>
+
             </div>
 
             <div className="pt-4 border-t border-[#EBEAE6] flex justify-end">
@@ -639,6 +660,21 @@ export default function CertificateManagement() {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEDCD8] text-xs font-bold text-slate-800 focus:border-slate-400 outline-none bg-white font-mono"
                   required
                 />
+              </div>
+
+              {/* Status Toggle */}
+              <div className="space-y-1.5 flex flex-col">
+                <label className="text-xs font-bold text-slate-655 uppercase tracking-wide block">Website Visibility</label>
+                <div className="flex items-center gap-3 bg-[#FAF9F6] border border-[#DEDCD8] rounded-xl p-3">
+                  <span className={`text-xs font-bold ${editItem.status === 'Pending' || !editItem.status ? 'text-slate-800' : 'text-slate-400'}`}>Hidden</span>
+                  <div 
+                    onClick={() => setEditItem({ ...editItem, status: editItem.status === 'Active' ? 'Pending' : 'Active' })}
+                    className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors ${editItem.status === 'Active' ? 'bg-[#E31C1C]' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full shadow-sm transition-transform ${editItem.status === 'Active' ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                  </div>
+                  <span className={`text-xs font-bold ${editItem.status === 'Active' ? 'text-[#E31C1C]' : 'text-slate-400'}`}>Visible on Website (Active)</span>
+                </div>
               </div>
 
               <div className="flex gap-2.5 pt-3 border-t border-[#EBEAE6]">

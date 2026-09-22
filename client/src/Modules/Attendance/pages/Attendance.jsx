@@ -164,7 +164,7 @@ export default function Attendance() {
         adminAttendanceApi.getPendingApprovals(),
         adminAttendanceApi.getDailySummary(dateOverride),
         adminAttendanceApi.getActiveEmployees(),
-        adminAttendanceApi.getAttendanceStats(),
+        adminAttendanceApi.getAttendanceStats(dateOverride),
         adminAttendanceApi.getAllLeaves(),
         adminAttendanceApi.getAttendanceSettings().catch(() => null)
       ]);
@@ -1484,7 +1484,7 @@ export default function Attendance() {
                         </span>
 
                         {/* Interactive Tooltip on Hover */}
-                        <div className="absolute -top-12 bg-slate-900 text-white text-[10px] font-semibold rounded-lg p-2.5 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 flex flex-col gap-0.5 min-w-[80px]">
+                        <div className="absolute -top-16 bg-slate-900 text-white text-[10px] font-semibold rounded-lg p-2.5 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 flex flex-col gap-0.5 min-w-max whitespace-nowrap">
                           <span className="text-slate-400 uppercase tracking-widest text-[9px]">{item.label}</span>
                           <span className="text-white">On-time: {item.onTime}</span>
                           <span className="text-slate-300">Late: {item.late}</span>

@@ -355,6 +355,16 @@ class PaymentService {
         studentId
       }], session);
 
+      // 7. Auto-activate Certificate if fees are PAID
+      if (feePlan.status === 'PAID') {
+        const Certificate = require('../models/Certificate');
+        await Certificate.findOneAndUpdate(
+          { enrollmentNumber: student.studentId },
+          { status: 'Active' },
+          { session }
+        );
+      }
+
       // Commit changes
       await session.commitTransaction();
       session.endSession();

@@ -50,4 +50,5 @@ const LeaveSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model('Leave', LeaveSchema);
+const attendanceDb = require('../config/attendanceDb');
+module.exports = attendanceDb.model('Leave', LeaveSchema);

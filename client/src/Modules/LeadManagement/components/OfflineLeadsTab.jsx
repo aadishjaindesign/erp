@@ -4,7 +4,7 @@ import OfflineLeadForm from './OfflineLeadForm';
 import { leadService } from '../services/leadService';
 import { formatDate } from '../../../utils/dateUtils';
 
-const LEAD_SOURCES = ['All', 'YouTube', 'Instagram', 'Google', 'Walk-In', 'Friend / Referral', 'Other'];
+const LEAD_SOURCES = ['All', 'Website', 'YouTube', 'Instagram', 'Google', 'Walk-In', 'Friend / Referral', 'Other'];
 
 const LEAD_TYPE_COLORS = {
   Cold: 'bg-yellow-100 text-yellow-700 border-yellow-200',
@@ -23,7 +23,7 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
   const isOfflineLead = (l) => {
     if (!l) return false;
     const src = (l.source || '').toLowerCase();
-    if (['walk-in', 'phone call', 'whatsapp', 'youtube', 'instagram', 'google', 'friend / referral', 'other'].includes(src)) return true;
+    if (['walk-in', 'phone call', 'whatsapp', 'youtube', 'instagram', 'google', 'friend / referral', 'other', 'website', 'popup', 'course-page'].includes(src)) return true;
     if (l.counsellor && l.counsellor !== 'undefined') return true;
     return !ONLINE_SOURCES.includes(src);
   };
@@ -31,7 +31,13 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
   let offlineLeads = Array.isArray(leads) ? leads.filter(isOfflineLead) : [];
   
   if (selectedSourceFilter !== 'All') {
-    offlineLeads = offlineLeads.filter(l => (l.source || 'Other').toLowerCase() === selectedSourceFilter.toLowerCase());
+    offlineLeads = offlineLeads.filter(l => {
+      const src = (l.source || 'Other').toLowerCase();
+      if (selectedSourceFilter.toLowerCase() === 'website') {
+        return src === 'website' || src === 'popup' || src === 'course-page';
+      }
+      return src === selectedSourceFilter.toLowerCase();
+    });
   }
 
   const getCounsellor = (l) => {

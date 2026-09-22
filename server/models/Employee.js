@@ -80,4 +80,5 @@ EmployeeSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model('Employee', EmployeeSchema);
+const attendanceDb = require('../config/attendanceDb');
+module.exports = attendanceDb.model('Employee', EmployeeSchema);

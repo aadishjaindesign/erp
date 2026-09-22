@@ -16,7 +16,7 @@ const PREDEFINED_COURSES = [
 ];
 
 const LEAD_SOURCES = [
-  'YouTube', 'Instagram', 'Google', 'Walk-In', 'Friend / Referral', 'Other'
+  'Website', 'YouTube', 'Instagram', 'Google', 'Walk-In', 'Friend / Referral', 'Other'
 ];
 
 const LEAD_TYPES = [

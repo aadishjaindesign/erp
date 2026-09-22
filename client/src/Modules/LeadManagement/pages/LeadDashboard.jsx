@@ -105,7 +105,7 @@ export default function LeadDashboard() {
   const isOfflineLead = (lead) => {
     if (!lead) return false;
     const src = (lead.source || '').toLowerCase();
-    return OFFLINE_SOURCES.includes(src) || Boolean(lead.counsellor && lead.counsellor !== 'undefined');
+    return OFFLINE_SOURCES.includes(src) || Boolean(lead.counsellor && lead.counsellor !== 'undefined' && lead.counsellor !== 'Unassigned');
   };
 
   // Filter online website leads strictly
@@ -446,16 +446,6 @@ export default function LeadDashboard() {
           >
             Offline Leads
           </button>
-          <button 
-            onClick={() => setActiveTab('analytics')}
-            className={`pb-2.5 text-xs font-bold transition-all border-b-2 -mb-[2px] cursor-pointer ${
-              activeTab === 'analytics' 
-                ? 'text-[#E31C1C] border-[#E31C1C]' 
-                : 'text-slate-450 border-transparent hover:text-slate-700'
-            }`}
-          >
-            Performance Analytics
-          </button>
         </div>
 
         {/* 3. Main Content Switching */}
@@ -468,10 +458,6 @@ export default function LeadDashboard() {
               onDeleteLead={handleDelete}
               onActivityAdded={refreshStaffSummary}
             />
-          </div>
-        ) : activeTab === 'analytics' ? (
-          <div className="bg-white border border-[#E8E6E1] rounded-3xl p-6 shadow-sm">
-            <LeadConnectionSummary activities={staffSummary} />
           </div>
         ) : activeTab === 'offline' ? (
           <AdmissionTab />
