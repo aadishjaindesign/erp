@@ -237,13 +237,8 @@ const admitStudent = async (req, res) => {
   try {
     const admissionData = req.body;
     
-    // Verify if the user exists in Lead based on phone or email
-    const existingLead = await Lead.findOne({
-      $or: [
-        { phone: admissionData.contact },
-        { email: admissionData.email }
-      ]
-    });
+    // Verify if the user exists in Lead based on phone
+    const existingLead = await Lead.findOne({ phone: admissionData.contact });
 
     if (!existingLead) {
       return res.status(400).json({ success: false, message: "User is not in the Leads system. Admission is only allowed for existing leads." });
