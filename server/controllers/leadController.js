@@ -139,7 +139,7 @@ const deleteLead = async (req, res) => {
 
 const updateLead = async (req, res) => {
   try {
-    const { name, phone, email, message, course, source, status, counsellor, date } = req.body;
+    const { name, phone, email, message, course, source, status, counsellor, date, alternatePhone, leadType } = req.body;
     
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
@@ -151,6 +151,8 @@ const updateLead = async (req, res) => {
     if (status !== undefined) updateData.status = status;
     if (counsellor !== undefined) updateData.counsellor = counsellor;
     if (date !== undefined) updateData.date = date;
+    if (alternatePhone !== undefined) updateData.alternatePhone = alternatePhone;
+    if (leadType !== undefined) updateData.leadType = leadType;
 
     const updated = await Lead.findByIdAndUpdate(
       req.params.id,
@@ -172,7 +174,7 @@ const updateLead = async (req, res) => {
 
 const createOfflineLead = async (req, res) => {
   try {
-    let { name, phone, course, source, email, message, counsellor, date } = req.body;
+    let { name, phone, alternatePhone, course, source, email, message, counsellor, date, leadType } = req.body;
 
     if (!name || !phone || !course) {
       return res.status(400).json({
@@ -210,7 +212,9 @@ const createOfflineLead = async (req, res) => {
       course,
       source: source || "Walk-in",
       counsellor: counsellor || "Unassigned",
-      date: date || new Date()
+      date: date || new Date(),
+      alternatePhone,
+      leadType: leadType || "Cold"
     });
 
     res.status(201).json({
@@ -244,6 +248,10 @@ const admitStudent = async (req, res) => {
     if (!existingLead) {
       return res.status(400).json({ success: false, message: "User is not in the Leads system. Admission is only allowed for existing leads." });
     }
+
+    existingLead.leadType = 'Sale';
+    existingLead.status = 'Converted';
+    await existingLead.save();
 
     // 1. Calculate and validate remaining fees
     const totalFees = Number(admissionData.totalFees) || 0;

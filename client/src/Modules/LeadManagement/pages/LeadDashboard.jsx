@@ -414,7 +414,6 @@ export default function LeadDashboard() {
           </div>
         </div>
 
-        {/* 2. Custom Tabs */}
         <div className="flex border-b border-[#E3E1DC] gap-4">
           <button 
             onClick={() => setActiveTab('online')}
@@ -427,16 +426,6 @@ export default function LeadDashboard() {
             Website Leads
           </button>
           <button 
-            onClick={() => setActiveTab('offline')}
-            className={`pb-2.5 text-xs font-bold transition-all border-b-2 -mb-[2px] cursor-pointer ${
-              activeTab === 'offline' 
-                ? 'text-[#E31C1C] border-[#E31C1C]' 
-                : 'text-slate-450 border-transparent hover:text-slate-700'
-            }`}
-          >
-            Admission Form
-          </button>
-          <button 
             onClick={() => setActiveTab('offlineLeads')}
             className={`pb-2.5 text-xs font-bold transition-all border-b-2 -mb-[2px] cursor-pointer ${
               activeTab === 'offlineLeads' 
@@ -445,6 +434,16 @@ export default function LeadDashboard() {
             }`}
           >
             Offline Leads
+          </button>
+          <button 
+            onClick={() => setActiveTab('offline')}
+            className={`pb-2.5 text-xs font-bold transition-all border-b-2 -mb-[2px] cursor-pointer ${
+              activeTab === 'offline' 
+                ? 'text-[#E31C1C] border-[#E31C1C]' 
+                : 'text-slate-450 border-transparent hover:text-slate-700'
+            }`}
+          >
+            Admission Form
           </button>
         </div>
 

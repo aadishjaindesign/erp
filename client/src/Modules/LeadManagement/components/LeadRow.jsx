@@ -174,16 +174,20 @@ export default function LeadRow({
         </div>
       </div>
 
-      {/* 3. Assignment Status */}
+      {/* 3. Latest Activity Log */}
       <div className="lg:w-44 shrink-0">
         {hasStaff ? (
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-[#E31C1C] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
               {staffInitials}
             </div>
-            <div className="flex flex-col">
-              <span className="text-[9px] font-bold text-slate-400 tracking-wider uppercase">ASSIGNED TO</span>
-              <span className="text-xs font-bold text-slate-700 leading-tight">{latestActivity.staffName}</span>
+            <div className="flex flex-col truncate w-36">
+              <span className="text-[9px] font-bold text-slate-400 tracking-wider uppercase truncate" title={`${latestActivity.callStatus || 'Activity'} • ${latestActivity.staffName}`}>
+                {latestActivity.callStatus || 'Activity'} • {latestActivity.staffName}
+              </span>
+              <span className="text-xs font-bold text-slate-700 leading-tight truncate max-w-full" title={latestActivity.notes || 'No notes left'}>
+                {latestActivity.notes || 'No notes left'}
+              </span>
             </div>
           </div>
         ) : (

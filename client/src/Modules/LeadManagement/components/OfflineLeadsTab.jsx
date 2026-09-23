@@ -4,7 +4,7 @@ import OfflineLeadForm from './OfflineLeadForm';
 import { leadService } from '../services/leadService';
 import { formatDate } from '../../../utils/dateUtils';
 
-const LEAD_SOURCES = ['All', 'Website', 'YouTube', 'Instagram', 'Google', 'Walk-In', 'Friend / Referral', 'Other'];
+const LEAD_SOURCES = ['All', 'Social Media', 'Website', 'YouTube', 'Instagram', 'Google', 'Walk-In', 'Friend / Referral', 'Other'];
 
 const LEAD_TYPE_COLORS = {
   Cold: 'bg-yellow-100 text-yellow-700 border-yellow-200',
@@ -30,9 +30,17 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
 
   let offlineLeads = Array.isArray(leads) ? leads.filter(isOfflineLead) : [];
   
-  if (selectedSourceFilter !== 'All') {
+  if (selectedSourceFilter === 'All') {
+    offlineLeads = offlineLeads.filter(l => {
+      const src = (l.source || '').toLowerCase();
+      return src !== 'website' && src !== 'popup' && src !== 'course-page';
+    });
+  } else {
     offlineLeads = offlineLeads.filter(l => {
       const src = (l.source || 'Other').toLowerCase();
+      if (selectedSourceFilter.toLowerCase() === 'social media') {
+        return ['youtube', 'instagram', 'google'].includes(src);
+      }
       if (selectedSourceFilter.toLowerCase() === 'website') {
         return src === 'website' || src === 'popup' || src === 'course-page';
       }
@@ -57,6 +65,7 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
       const payload = {
         name: leadData.name,
         phone: leadData.contact,
+        alternatePhone: leadData.alternateContact,
         source: leadData.source,
         course: leadData.course,
         status: editingLead?.status || 'pending',
@@ -88,6 +97,7 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
       ...lead,
       id: lead._id || lead.id,
       contact: lead.phone,
+      alternateContact: lead.alternatePhone || '',
       source: lead.source,
       counsellor: getCounsellor(lead),
       leadType: lead.leadType || 'Cold',

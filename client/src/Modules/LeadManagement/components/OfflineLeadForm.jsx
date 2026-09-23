@@ -38,6 +38,7 @@ const EMPTY_FORM = {
   counsellor: 'Khushi Soni',
   date: new Date().toISOString().slice(0, 10),
   leadType: 'Cold',
+  alternateContact: '',
 };
 
 export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
@@ -48,9 +49,10 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
         contact: editingLead.contact || '',
         source: editingLead.source || 'Walk-In',
         course: editingLead.course || '',
-        counsellor: editingLead.counsellor || '',
+        counsellor: editingLead.counsellor || 'Khushi Soni',
         date: editingLead.date || new Date().toISOString().slice(0, 10),
         leadType: editingLead.leadType || 'Cold',
+        alternateContact: editingLead.alternateContact || '',
       };
     }
     return { ...EMPTY_FORM };
@@ -79,7 +81,8 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
       course: form.course || 'Not Specified',
       counsellor: form.counsellor || 'Khushi Soni',
       date: form.date,
-      leadType: form.leadType || 'Cold'
+      leadType: form.leadType || 'Cold',
+      alternateContact: form.alternateContact?.trim()
     });
     if (!editingLead) handleReset();
   };
@@ -153,6 +156,21 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
               />
             </div>
             <p className="text-[10px] text-slate-400 mt-1 font-semibold">Without country prefix (e.g. 09876543210)</p>
+          </div>
+
+          {/* Alternate Contact */}
+          <div>
+            <label className={labelCls}>Alternate Number <span className="text-slate-400 font-normal lowercase">(Optional)</span></label>
+            <div className="relative">
+              <Phone size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                className={`${inputCls} pl-8`}
+                placeholder="10-digit mobile number"
+                maxLength={10}
+                value={form.alternateContact || ''}
+                onChange={e => set('alternateContact', e.target.value.replace(/\D/, ''))}
+              />
+            </div>
           </div>
 
           {/* 3. Course */}

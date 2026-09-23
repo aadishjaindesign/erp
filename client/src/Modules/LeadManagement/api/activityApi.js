@@ -74,6 +74,7 @@ export const activityApi = {
           leadId: a.leadId,
           staffName: a.staffName,
           callStatus: a.callStatus,
+          notes: a.notes,
           createdAt: a.createdAt,
           followUpDate: a.followUpDate || null,
         };
