@@ -306,6 +306,12 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel, isSu
 
   const handleSubmit = () => {
     if (isSubmitting) return;
+
+    if (!form.manualEnrollmentNo || form.manualEnrollmentNo.trim() === '') {
+      alert('Enrollment number is required. Please provide it before submitting.');
+      return;
+    }
+
     onSubmit({
       ...form,
       name: form.fullName || 'Unnamed Student',
@@ -580,11 +586,11 @@ export default function AdmissionForm({ onSubmit, editingStudent, onCancel, isSu
                     Payment Details
                   </div>
                   <div className="flex flex-wrap gap-3 mb-4">
-                    <div>
+                    <div className="flex-1 min-w-[150px]">
                       <label className={labelCls}>Total Course Fees (₹) <span className="text-[#E31C1C]">*</span></label>
                       <input className={inputCls} placeholder="Enter total tuition fee" type="number" value={form.totalFees} onChange={e => set('totalFees', e.target.value)} />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-[150px]">
                       <label className={labelCls}>Advance Paid Deposit (₹)</label>
                       <input className={inputCls} placeholder="Tuition deposit paid" type="number" value={form.advancePaid} onChange={e => set('advancePaid', e.target.value)} />
                     </div>

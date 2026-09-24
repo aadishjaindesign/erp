@@ -1000,9 +1000,9 @@ export default function Attendance() {
   }, [chartStats]);
 
   const leaveSummaryThisMonth = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+    const activeDate = customDate ? new Date(customDate) : new Date();
+    const currentYear = activeDate.getFullYear();
+    const currentMonth = activeDate.getMonth();
     
     const leavesThisMonth = leaveRequests.filter(l => {
       if (!l.startDate) return false;
@@ -1016,7 +1016,7 @@ export default function Attendance() {
     const pending = leavesThisMonth.filter(l => l.status === 'Pending').length;
 
     return { total, approved, rejected, pending };
-  }, [leaveRequests]);
+  }, [leaveRequests, customDate]);
 
   const formatTime = (timeStr) => {
     if (!timeStr || timeStr === '-') return '-';
@@ -2026,11 +2026,11 @@ export default function Attendance() {
               </div>
             </div>
 
-            {/* Leave Summary (This Month) Card */}
+            {/* Leave Summary Card */}
             <div className="bg-white border border-[#E8E6E1] rounded-3xl p-5 shadow-xs space-y-4">
               <div className="space-y-0.5">
                 <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                  Leave Summary (This Month)
+                  Leave Summary ({customDate ? new Date(customDate).toLocaleString('default', { month: 'long' }) : 'This Month'})
                 </h3>
               </div>
               

@@ -8,7 +8,8 @@ import ActivityModal from './ActivityModal';
 import { formatDate } from '../../../utils/dateUtils';
 
 const STAFF_MEMBERS = [
-  "Khushi Soni",
+  "Staff",
+  "Owner"
 ];
 
 export default function LeadDetails({ lead, onClose, onUpdateStatus, onDeleteLead, onActivityAdded }) {
@@ -47,14 +48,14 @@ export default function LeadDetails({ lead, onClose, onUpdateStatus, onDeleteLea
     return engaged ? engaged.staffName : null;
   }, [activities]);
 
-  const [selectedOperator, setSelectedOperator] = useState('');
+  const [selectedOperator, setSelectedOperator] = useState('Staff');
 
   // Sync selectedOperator with currentAssignedStaff once activities load
   useEffect(() => {
     if (currentAssignedStaff) {
       setSelectedOperator(currentAssignedStaff);
     } else {
-      setSelectedOperator('');
+      setSelectedOperator('Staff');
     }
   }, [currentAssignedStaff]);
 
@@ -289,7 +290,6 @@ export default function LeadDetails({ lead, onClose, onUpdateStatus, onDeleteLea
               backgroundSize: '11px'
             }}
           >
-            <option value="">-- Assign Executive --</option>
             {STAFF_MEMBERS.map((staff) => (
               <option key={staff} value={staff}>{staff}</option>
             ))}
