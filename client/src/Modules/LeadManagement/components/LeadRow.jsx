@@ -22,6 +22,15 @@ const formatSource = (src) => {
   return src.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Campaign';
 };
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + 
+         ' • ' + 
+         d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+};
+
 const getFollowUpStatus = (dateStr) => {
   if (!dateStr) return { label: 'No follow-up set', type: 'none' };
   const now = new Date();
@@ -103,12 +112,12 @@ export default function LeadRow({
     if (norm === 'converted') return 'Converted';
     if (norm === 'not interested' || norm === 'rejected') return 'Not Interested';
     if (norm === 'follow-up' || norm === 'followup') return 'Follow-up';
-    if (norm === 'connected' || norm === 'contacted') return 'Connected';
+    if (norm === 'contacted') return 'Contacted';
+    if (norm === 'connected') return 'Connected';
 
     // If status is 'New' or 'pending', check if staff activity / assignment exists
     if (latestActivity) {
       if (latestActivity.followUpDate) return 'Follow-up';
-      return 'Connected';
     }
     return 'New';
   }, [lead.status, latestActivity]);
@@ -130,6 +139,7 @@ export default function LeadRow({
   const hasStaff = latestActivity && latestActivity.staffName;
   const staffInitials = hasStaff ? getInitials(latestActivity.staffName) : '';
   const followUp = getFollowUpStatus(latestActivity?.followUpDate);
+  const receiveDate = lead.createdAt || lead.date;
 
   return (
     <div className="bg-white border border-[#E8E6E1] shadow-sm rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-all hover:shadow-md">
@@ -168,9 +178,18 @@ export default function LeadRow({
             {lead.course}
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[11px] text-slate-550 font-medium">
-          <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="truncate" title={formatSource(lead.source)}>{formatSource(lead.source)}</span>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1 text-[11px] text-slate-550 font-medium">
+            <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="truncate" title={formatSource(lead.source)}>{formatSource(lead.source)}</span>
+          </div>
+          {receiveDate && (
+            <div className="flex items-center gap-1 text-[10px] text-slate-450 font-medium ml-[18px]">
+              <span className="truncate" title="Received Date">
+                {formatDate(receiveDate)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -232,6 +251,7 @@ export default function LeadRow({
             }}
           >
             <option value="New">New</option>
+            <option value="Contacted">Contacted</option>
             <option value="Connected">Connected</option>
             <option value="Follow-up">Follow-up</option>
             <option value="Converted">Converted</option>

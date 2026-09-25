@@ -194,6 +194,7 @@ export default function LeadDashboard() {
   const statsCounts = useMemo(() => {
     const counts = {
       New: 0,
+      Contacted: 0,
       Connected: 0,
       'Follow-up': 0,
       Converted: 0,
@@ -205,11 +206,11 @@ export default function LeadDashboard() {
       const status = l.status || 'New';
       const norm = status.toLowerCase();
       
-      if ((norm === 'new' || norm === 'pending') && hasActivity) {
-        counts.Connected += 1;
-      } else if (norm === 'new' || norm === 'pending') {
+      if (norm === 'new' || norm === 'pending') {
         counts.New += 1;
-      } else if (norm === 'connected' || norm === 'contacted') {
+      } else if (norm === 'contacted') {
+        counts.Contacted += 1;
+      } else if (norm === 'connected') {
         counts.Connected += 1;
       } else if (norm === 'converted') {
         counts.Converted += 1;

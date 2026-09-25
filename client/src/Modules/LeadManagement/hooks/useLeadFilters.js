@@ -63,11 +63,8 @@ export const useLeadFilters = (leads, staffSummary) => {
           const hasActivity = latestActivitiesMap && latestActivitiesMap[lead._id || lead.id];
           
           if (activeStatusFilter === 'New') {
-            const isNew = (norm === 'new' || norm === 'pending') && !hasActivity;
+            const isNew = norm === 'new' || norm === 'pending';
             if (!isNew) return false;
-          } else if (activeStatusFilter === 'Connected') {
-            const isConnected = norm === 'connected' || norm === 'contacted' || ((norm === 'new' || norm === 'pending') && hasActivity);
-            if (!isConnected) return false;
           } else {
             if (norm !== activeStatusFilter.toLowerCase()) {
               return false;

@@ -121,8 +121,6 @@ export default function LeadDetails({ lead, onClose, onUpdateStatus, onDeleteLea
     const res = await addActivity(activityData);
     if (activityData.followUpDate) {
       await onUpdateStatus(lead._id || lead.id, 'Follow-up');
-    } else if (lead.status === 'New' || lead.status === 'pending') {
-      await onUpdateStatus(lead._id || lead.id, 'Connected');
     }
     if (onActivityAdded) {
       onActivityAdded();
@@ -363,7 +361,7 @@ export default function LeadDetails({ lead, onClose, onUpdateStatus, onDeleteLea
               <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2.5 py-1 border-b border-[#EBEAE6] mb-1">
                 Quick Status Change
               </div>
-              {['New', 'Connected', 'Follow-up', 'Converted', 'Not Interested'].map((st) => {
+              {['New', 'Contacted', 'Connected', 'Follow-up', 'Converted', 'Not Interested'].map((st) => {
                 const isCurrent = (lead.status || 'New') === st;
                 return (
                   <button

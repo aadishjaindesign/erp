@@ -12,12 +12,20 @@ export default function LeadStats({ counts, activeStatusFilter, setActiveStatusF
       activeBorder: 'border-blue-500 ring-2 ring-blue-500/20'
     },
     {
+      status: 'Contacted',
+      label: 'Contacted',
+      icon: PhoneCall,
+      color: 'text-amber-500',
+      bgColor: 'bg-amber-50',
+      activeBorder: 'border-amber-400 ring-2 ring-amber-400/20'
+    },
+    {
       status: 'Connected',
       label: 'Connected',
       icon: PhoneCall,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
-      activeBorder: 'border-amber-500 ring-2 ring-amber-500/20'
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50',
+      activeBorder: 'border-orange-500 ring-2 ring-orange-500/20'
     },
     {
       status: 'Follow-up',
