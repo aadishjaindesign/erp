@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, List, Filter } from 'lucide-react';
+import { Plus, List, Filter, Check } from 'lucide-react';
 import OfflineLeadForm from './OfflineLeadForm';
 import { leadService } from '../services/leadService';
 import { formatDate } from '../../../utils/dateUtils';
@@ -16,7 +16,8 @@ const LEAD_TYPE_COLORS = {
 export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
   const [nestedTab, setNestedTab] = useState('new-lead'); // 'new-lead' | 'saved-leads'
   const [editingLead, setEditingLead] = useState(null);
-  const [selectedSourceFilter, setSelectedSourceFilter] = useState('All');
+  const [selectedSourceFilters, setSelectedSourceFilters] = useState(['All']);
+  const [expandedRemarkId, setExpandedRemarkId] = useState(null);
 
   const ONLINE_SOURCES = ['popup', 'course-page', 'website', 'facebook', 'instagram (organic)', 'google search'];
 
@@ -30,7 +31,7 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
 
   let offlineLeads = Array.isArray(leads) ? leads.filter(isOfflineLead) : [];
   
-  if (selectedSourceFilter === 'All') {
+  if (selectedSourceFilters.includes('All')) {
     offlineLeads = offlineLeads.filter(l => {
       const src = (l.source || '').toLowerCase();
       return src !== 'website' && src !== 'popup' && src !== 'course-page';
@@ -38,15 +39,33 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
   } else {
     offlineLeads = offlineLeads.filter(l => {
       const src = (l.source || 'Other').toLowerCase();
-      if (selectedSourceFilter.toLowerCase() === 'social media') {
-        return ['youtube', 'instagram', 'google'].includes(src);
-      }
-      if (selectedSourceFilter.toLowerCase() === 'website') {
-        return src === 'website' || src === 'popup' || src === 'course-page';
-      }
-      return src === selectedSourceFilter.toLowerCase();
+      return selectedSourceFilters.some(filter => {
+        if (filter.toLowerCase() === 'social media') {
+          return ['youtube', 'instagram', 'google'].includes(src);
+        }
+        if (filter.toLowerCase() === 'website') {
+          return src === 'website' || src === 'popup' || src === 'course-page';
+        }
+        return src === filter.toLowerCase();
+      });
     });
   }
+
+  const toggleSourceFilter = (src) => {
+    if (src === 'All') {
+      setSelectedSourceFilters(['All']);
+      return;
+    }
+    
+    let newFilters = selectedSourceFilters.filter(f => f !== 'All');
+    if (newFilters.includes(src)) {
+      newFilters = newFilters.filter(f => f !== src);
+      if (newFilters.length === 0) newFilters = ['All'];
+    } else {
+      newFilters.push(src);
+    }
+    setSelectedSourceFilters(newFilters);
+  };
 
   const getCounsellor = (l) => {
     if (l.counsellor && l.counsellor !== 'undefined' && l.counsellor !== 'Unassigned') {
@@ -56,6 +75,12 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
       return l.message.replace('Counsellor:', '').trim();
     }
     return 'Khushi Soni';
+  };
+
+  const getRemarks = (l) => {
+    if (!l.message) return '-';
+    const remarks = l.message.split('Counsellor:')[0].trim();
+    return remarks || '-';
   };
 
   const handleLeadSubmit = async (leadData) => {
@@ -70,7 +95,7 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
         course: leadData.course,
         status: editingLead?.status || 'pending',
         counsellor: assignedCounsellor,
-        message: `Counsellor: ${assignedCounsellor}`,
+        message: leadData.remarks ? `${leadData.remarks}\nCounsellor: ${assignedCounsellor}` : `Counsellor: ${assignedCounsellor}`,
         date: leadData.date,
         leadType: leadData.leadType || 'Cold'
       };
@@ -93,6 +118,11 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
   };
 
   const handleEditLead = (lead) => {
+    let extractedRemarks = '';
+    if (lead.message) {
+      extractedRemarks = lead.message.split('Counsellor:')[0].trim();
+    }
+
     setEditingLead({
       ...lead,
       id: lead._id || lead.id,
@@ -101,6 +131,7 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
       source: lead.source,
       counsellor: getCounsellor(lead),
       leadType: lead.leadType || 'Cold',
+      remarks: extractedRemarks,
       // Normalize date to YYYY-MM-DD
       date: lead.date ? new Date(lead.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
     });
@@ -164,19 +195,24 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
         {nestedTab === 'saved-leads' && (
           <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
             <Filter size={14} className="text-slate-400 shrink-0 mr-1" />
-            {LEAD_SOURCES.map(src => (
+            {LEAD_SOURCES.map(src => {
+              const isSelected = selectedSourceFilters.includes(src);
+              return (
               <button
                 key={src}
-                onClick={() => setSelectedSourceFilter(src)}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-colors border ${
-                  selectedSourceFilter === src 
+                onClick={() => toggleSourceFilter(src)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-colors border ${
+                  isSelected 
                     ? 'bg-[#E31C1C] text-white border-[#E31C1C]' 
                     : 'bg-white text-slate-500 border-[#E8E6E1] hover:bg-slate-50'
                 }`}
               >
+                <div className={`w-3 h-3 rounded flex items-center justify-center ${isSelected ? 'border border-white bg-transparent' : 'border border-slate-300'}`}>
+                  {isSelected && <Check size={10} strokeWidth={3} />}
+                </div>
                 {src}
               </button>
-            ))}
+            )})}
           </div>
         )}
       </div>
@@ -198,11 +234,12 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
           ) : (
             <>
               {/* Table Header */}
-              <div className="grid grid-cols-8 gap-2 px-5 py-3 bg-[#FAF9F6] border-b border-[#E8E6E1] text-[10px] font-black text-slate-500 uppercase tracking-wider">
+              <div className="grid grid-cols-10 gap-2 px-5 py-3 bg-[#FAF9F6] border-b border-[#E8E6E1] text-[10px] font-black text-slate-500 uppercase tracking-wider">
                 <span className="col-span-2">Name</span>
                 <span>Contact</span>
                 <span>Source</span>
                 <span>Course</span>
+                <span className="col-span-2">Remarks</span>
                 <span>Type</span>
                 <span>Date</span>
                 <span className="text-right">Actions</span>
@@ -212,12 +249,19 @@ export default function OfflineLeadsTab({ leads = [], refreshLeads }) {
               {offlineLeads.map(lead => (
                 <div
                   key={lead._id || lead.id}
-                  className="grid grid-cols-8 gap-2 px-5 py-3.5 border-b border-[#F0EEEA] last:border-b-0 hover:bg-[#FAFAF9] transition-colors items-center"
+                  className="grid grid-cols-10 gap-2 px-5 py-3.5 border-b border-[#F0EEEA] last:border-b-0 hover:bg-[#FAFAF9] transition-colors items-center"
                 >
                   <span className="col-span-2 text-xs font-bold text-slate-800 truncate">{lead.name}</span>
                   <span className="text-xs font-semibold text-slate-600">{lead.phone}</span>
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{lead.source}</span>
                   <span className="text-xs font-semibold text-slate-700 truncate">{lead.course}</span>
+                  <span 
+                    className={`col-span-2 text-[10px] text-slate-500 cursor-pointer ${expandedRemarkId === (lead._id || lead.id) ? 'whitespace-pre-wrap break-words' : 'truncate'}`} 
+                    onClick={() => setExpandedRemarkId(expandedRemarkId === (lead._id || lead.id) ? null : (lead._id || lead.id))}
+                    title={expandedRemarkId === (lead._id || lead.id) ? "Click to collapse" : "Click to read more"}
+                  >
+                    {getRemarks(lead)}
+                  </span>
                   
                   {/* Lead Type Badge */}
                   <span className="flex items-center">

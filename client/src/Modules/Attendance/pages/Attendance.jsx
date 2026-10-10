@@ -579,6 +579,7 @@ export default function Attendance() {
   const [reportEmployeeId, setReportEmployeeId] = useState('');
   const [selectedReportMonthKey, setSelectedReportMonthKey] = useState('');
   const [reportData, setReportData] = useState([]);
+  const [reportFilterStatus, setReportFilterStatus] = useState('All');
   const [reportEmployeeInfo, setReportEmployeeInfo] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState('');
@@ -907,7 +908,7 @@ export default function Attendance() {
     let halfDays = 0;
 
     reportData.forEach(day => {
-      if (day.status === 'Present') presents++;
+      if (day.status === 'Present' || day.status === 'Work from Home') presents++;
       else if (day.status === 'Late') lates++;
       else if (day.status === 'Absent') absents++;
       else if (day.status === 'Paid Leave' || day.status === 'Leave') paidLeaves++;
@@ -978,8 +979,8 @@ export default function Attendance() {
   // Sidebar counters
   const counters = useMemo(() => {
     const totalActive = activeEmployees.length;
-    const loggedInCount = dailySummary.filter(d => d.status === 'Present' || d.status === 'Late' || d.status === 'Half Day').length;
-    const onTimeCount = dailySummary.filter(d => d.status === 'Present').length;
+    const loggedInCount = dailySummary.filter(d => d.status === 'Present' || d.status === 'Late' || d.status === 'Half Day' || d.status === 'Work from Home').length;
+    const onTimeCount = dailySummary.filter(d => d.status === 'Present' || d.status === 'Work from Home').length;
     const lateCount = dailySummary.filter(d => d.status === 'Late').length;
     const leaveAbsentCount = dailySummary.filter(d => ['Paid Leave', 'Unpaid Leave', 'Leave', 'Absent'].includes(d.status)).length;
     
@@ -1165,7 +1166,7 @@ export default function Attendance() {
       status = 'Absent'; // Default past unfilled to Absent
     }
 
-    if (status === 'Present') calPresentsCount++;
+    if (status === 'Present' || status === 'Work from Home') calPresentsCount++;
     if (status === 'Late') calLatesCount++;
     if (status === 'Absent') calAbsentsCount++;
 
@@ -1538,15 +1539,15 @@ export default function Attendance() {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto min-h-[220px]">
+                  <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar min-h-[220px] relative">
                     {activeTab === 'pending' ? (
                       <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
-                        <thead>
-                          <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                            <th className="pb-3">Name</th>
-                            <th className="pb-3">Department</th>
-                            <th className="pb-3">Requested On</th>
-                            <th className="pb-3 text-right">Actions</th>
+                        <thead className="sticky top-0 bg-white z-10 shadow-[0_1px_2px_-1px_rgba(0,0,0,0.1)]">
+                          <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider bg-white">
+                            <th className="pb-3 pt-3">Name</th>
+                            <th className="pb-3 pt-3">Department</th>
+                            <th className="pb-3 pt-3">Requested On</th>
+                            <th className="pb-3 pt-3 text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#EBEAE6]">
@@ -1557,7 +1558,7 @@ export default function Attendance() {
                               </td>
                             </tr>
                           ) : (
-                            pendingApprovals.slice(0, 6).map((emp) => (
+                            pendingApprovals.map((emp) => (
                               <tr key={emp._id} className="hover:bg-[#FAF9F6]/40 transition-colors">
                                 <td className="py-3 flex items-center gap-2.5">
                                   {emp.profilePicture ? (
@@ -1618,24 +1619,24 @@ export default function Attendance() {
                       </table></div></div>
                     ) : activeTab === 'all_employees' ? (
                       <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
-                        <thead>
-                          <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                            <th className="pb-3">Name</th>
-                            <th className="pb-3">Department</th>
-                            <th className="pb-3">Designation</th>
-                            <th className="pb-3">Status</th>
-                            <th className="pb-3 text-right">Actions</th>
+                        <thead className="sticky top-0 bg-white z-10 shadow-[0_1px_2px_-1px_rgba(0,0,0,0.1)]">
+                          <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider bg-white">
+                            <th className="pb-3 pt-3">Name</th>
+                            <th className="pb-3 pt-3">Department</th>
+                            <th className="pb-3 pt-3">Designation</th>
+                            <th className="pb-3 pt-3">Status</th>
+                            <th className="pb-3 pt-3 text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#EBEAE6]">
-                          {paginatedEmployees.length === 0 ? (
+                          {activeEmployees.length === 0 ? (
                             <tr>
                               <td colSpan="5" className="py-12 text-center text-slate-500 font-bold text-xs">
                                 No registered employees yet.
                               </td>
                             </tr>
                           ) : (
-                            paginatedEmployees.map((emp) => (
+                            activeEmployees.map((emp) => (
                               <tr key={emp._id} className="hover:bg-[#FAF9F6]/40 transition-colors">
                                 <td className="py-3 flex items-center gap-2.5">
                                   {emp.profilePicture ? (
@@ -1745,26 +1746,26 @@ export default function Attendance() {
                       </table></div></div>
                     ) : activeTab === 'leaves' ? (
                       <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
-                        <thead>
-                          <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                            <th className="pb-3">Employee</th>
-                            <th className="pb-3">Type</th>
-                            <th className="pb-3">Duration</th>
-                            <th className="pb-3">Leave Allocation</th>
-                            <th className="pb-3">Reason</th>
-                            <th className="pb-3">Status</th>
-                            <th className="pb-3 text-right">Actions</th>
+                        <thead className="sticky top-0 bg-white z-10 shadow-[0_1px_2px_-1px_rgba(0,0,0,0.1)]">
+                          <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider bg-white">
+                            <th className="pb-3 pt-3">Employee</th>
+                            <th className="pb-3 pt-3">Type</th>
+                            <th className="pb-3 pt-3">Duration</th>
+                            <th className="pb-3 pt-3">Leave Allocation</th>
+                            <th className="pb-3 pt-3">Reason</th>
+                            <th className="pb-3 pt-3">Status</th>
+                            <th className="pb-3 pt-3 text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#EBEAE6]">
-                          {paginatedLeaves.length === 0 ? (
+                          {leaveRequests.length === 0 ? (
                             <tr>
                               <td colSpan="7" className="py-12 text-center text-slate-500 font-bold text-xs">
                                 No leave applications found.
                               </td>
                             </tr>
                           ) : (
-                            paginatedLeaves.map((item) => (
+                            leaveRequests.map((item) => (
                               <tr key={item._id} className="hover:bg-[#FAF9F6]/40 transition-colors">
                                 <td className="py-3 flex items-center gap-2.5">
                                   {item.employee ? (
@@ -1885,8 +1886,7 @@ export default function Attendance() {
                     ) : null}
                   </div>
 
-                  {activeTab === 'all_employees' && renderPagination(safeEmployeePage, totalEmployeePages, setEmployeePage)}
-                  {activeTab === 'leaves' && renderPagination(safeLeavePage, totalLeavePages, setLeavePage)}
+
                 </div>
               </Card>
 
@@ -1998,13 +1998,14 @@ export default function Attendance() {
                         <div className="flex flex-col items-end gap-1">
                           <div className="flex items-center gap-1.5">
                             <span className={`w-2 h-2 rounded-full inline-block ${
-                              log.status === 'Present' ? 'bg-emerald-500 animate-pulse' :
+                              (log.status === 'Present' || log.status === 'Work from Home') ? 'bg-emerald-500 animate-pulse' :
                               log.status === 'Late' ? 'bg-red-300' :
                               ['Paid Leave', 'Unpaid Leave', 'Leave'].includes(log.status) ? 'bg-blue-400' :
                               'bg-rose-450'
                             }`} />
                             <span className="text-[10px] font-bold text-slate-500 uppercase select-none">
                               {log.status === 'Present' ? 'On-time' :
+                               log.status === 'Work from Home' ? 'WFH' :
                                log.status === 'Late' ? 'Late' :
                                ['Paid Leave', 'Unpaid Leave', 'Leave'].includes(log.status) ? 'Leave' :
                                'Absent'}
@@ -2321,37 +2322,68 @@ export default function Attendance() {
                 <>
                   {/* Stats Cards */}
                   <div className="flex flex-wrap gap-2.5">
-                    <div className="p-3 bg-emerald-50/60 border border-emerald-100 rounded-2xl text-center">
-                      <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider block">Presents</span>
-                      <strong className="text-emerald-700 text-base font-black mt-1 block">{reportStats.presents}</strong>
+                    <div 
+                      onClick={() => setReportFilterStatus('All')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'All' ? 'bg-slate-800 border-slate-900 shadow-md ring-2 ring-slate-800 ring-offset-1' : 'bg-slate-100/60 border-slate-200 hover:bg-slate-200'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'All' ? 'text-slate-100' : 'text-slate-600'}`}>All</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'All' ? 'text-white' : 'text-slate-700'}`}>{reportData.length}</strong>
                     </div>
-                    <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-2xl text-center">
-                      <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider block">Lates</span>
-                      <strong className="text-amber-700 text-base font-black mt-1 block">{reportStats.lates}</strong>
+                    <div 
+                      onClick={() => setReportFilterStatus('Present')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Present' ? 'bg-emerald-600 border-emerald-700 shadow-md ring-2 ring-emerald-600 ring-offset-1' : 'bg-emerald-50/60 border-emerald-100 hover:bg-emerald-100'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Present' ? 'text-emerald-50' : 'text-emerald-600'}`}>Presents</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Present' ? 'text-white' : 'text-emerald-700'}`}>{reportStats.presents}</strong>
                     </div>
-                    <div className="p-3 bg-cyan-50/60 border border-cyan-100 rounded-2xl text-center">
-                      <span className="text-[9px] font-black text-cyan-600 uppercase tracking-wider block">Half Days</span>
-                      <strong className="text-cyan-700 text-base font-black mt-1 block">{reportStats.halfDays}</strong>
+                    <div 
+                      onClick={() => setReportFilterStatus('Late')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Late' ? 'bg-amber-500 border-amber-600 shadow-md ring-2 ring-amber-500 ring-offset-1' : 'bg-amber-50/60 border-amber-100 hover:bg-amber-100'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Late' ? 'text-amber-50' : 'text-amber-600'}`}>Lates</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Late' ? 'text-white' : 'text-amber-700'}`}>{reportStats.lates}</strong>
                     </div>
-                    <div className="p-3 bg-teal-50/60 border border-teal-100 rounded-2xl text-center">
-                      <span className="text-[9px] font-black text-teal-600 uppercase tracking-wider block">Paid Leaves</span>
-                      <strong className="text-teal-700 text-base font-black mt-1 block">{reportStats.paidLeaves}</strong>
+                    <div 
+                      onClick={() => setReportFilterStatus('Half Day')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Half Day' ? 'bg-cyan-600 border-cyan-700 shadow-md ring-2 ring-cyan-600 ring-offset-1' : 'bg-cyan-50/60 border-cyan-100 hover:bg-cyan-100'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Half Day' ? 'text-cyan-50' : 'text-cyan-600'}`}>Half Days</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Half Day' ? 'text-white' : 'text-cyan-700'}`}>{reportStats.halfDays}</strong>
                     </div>
-                    <div className="p-3 bg-orange-50/60 border border-orange-100 rounded-2xl text-center">
-                      <span className="text-[9px] font-black text-orange-600 uppercase tracking-wider block">Unpaid (LOP)</span>
-                      <strong className="text-orange-700 text-base font-black mt-1 block">{reportStats.unpaidLeaves}</strong>
+                    <div 
+                      onClick={() => setReportFilterStatus('Paid Leave')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Paid Leave' ? 'bg-teal-600 border-teal-700 shadow-md ring-2 ring-teal-600 ring-offset-1' : 'bg-teal-50/60 border-teal-100 hover:bg-teal-100'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Paid Leave' ? 'text-teal-50' : 'text-teal-600'}`}>Paid Leaves</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Paid Leave' ? 'text-white' : 'text-teal-700'}`}>{reportStats.paidLeaves}</strong>
                     </div>
-                    <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-2xl text-center">
-                      <span className="text-[9px] font-black text-indigo-650 uppercase tracking-wider block">Holidays</span>
-                      <strong className="text-indigo-700 text-base font-black mt-1 block">{reportStats.holidays}</strong>
+                    <div 
+                      onClick={() => setReportFilterStatus('Unpaid Leave')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Unpaid Leave' ? 'bg-orange-500 border-orange-600 shadow-md ring-2 ring-orange-500 ring-offset-1' : 'bg-orange-50/60 border-orange-100 hover:bg-orange-100'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Unpaid Leave' ? 'text-orange-50' : 'text-orange-600'}`}>Unpaid (LOP)</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Unpaid Leave' ? 'text-white' : 'text-orange-700'}`}>{reportStats.unpaidLeaves}</strong>
                     </div>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-center">
-                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Weekends</span>
-                      <strong className="text-slate-655 text-base font-black mt-1 block">{reportStats.weekends}</strong>
+                    <div 
+                      onClick={() => setReportFilterStatus('Holiday')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Holiday' ? 'bg-indigo-600 border-indigo-700 shadow-md ring-2 ring-indigo-600 ring-offset-1' : 'bg-indigo-50/60 border-indigo-100 hover:bg-indigo-100'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Holiday' ? 'text-indigo-50' : 'text-indigo-650'}`}>Holidays</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Holiday' ? 'text-white' : 'text-indigo-700'}`}>{reportStats.holidays}</strong>
                     </div>
-                    <div className="p-3 bg-rose-50/50 border border-rose-100/80 rounded-2xl text-center">
-                      <span className="text-[9px] font-black text-brand-red uppercase tracking-wider block">Absents</span>
-                      <strong className="text-brand-red text-base font-black mt-1 block">{reportStats.absents}</strong>
+                    <div 
+                      onClick={() => setReportFilterStatus('Weekend')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Weekend' ? 'bg-slate-500 border-slate-600 shadow-md ring-2 ring-slate-500 ring-offset-1' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Weekend' ? 'text-slate-50' : 'text-slate-500'}`}>Weekends</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Weekend' ? 'text-white' : 'text-slate-655'}`}>{reportStats.weekends}</strong>
+                    </div>
+                    <div 
+                      onClick={() => setReportFilterStatus('Absent')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Absent' ? 'bg-red-600 border-red-700 shadow-md ring-2 ring-red-600 ring-offset-1' : 'bg-rose-50/50 border-rose-100/80 hover:bg-rose-100'}`}
+                    >
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Absent' ? 'text-red-50' : 'text-brand-red'}`}>Absents</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Absent' ? 'text-white' : 'text-brand-red'}`}>{reportStats.absents}</strong>
                     </div>
                   </div>
 
@@ -2369,7 +2401,18 @@ export default function Attendance() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#EBEAE6]">
-                        {reportData.map((day, idx) => (
+                        {reportData.filter(day => {
+                          if (reportFilterStatus === 'All') return true;
+                          if (reportFilterStatus === 'Present') return day.status === 'Present' || day.status === 'Work from Home';
+                          if (reportFilterStatus === 'Late') return day.status === 'Late';
+                          if (reportFilterStatus === 'Half Day') return day.status === 'Half Day';
+                          if (reportFilterStatus === 'Paid Leave') return day.status === 'Paid Leave' || day.status === 'Leave';
+                          if (reportFilterStatus === 'Unpaid Leave') return day.status === 'Unpaid Leave';
+                          if (reportFilterStatus === 'Holiday') return day.status === 'Holiday';
+                          if (reportFilterStatus === 'Weekend') return day.status === 'Weekend';
+                          if (reportFilterStatus === 'Absent') return day.status === 'Absent';
+                          return true;
+                        }).map((day, idx) => (
                           <tr key={idx} className="hover:bg-[#FAF9F6]/40 transition-colors">
                             <td className="p-4 font-bold text-slate-800">
                               {formatDate(day.date)}
@@ -2377,7 +2420,7 @@ export default function Attendance() {
                             <td className="p-4 text-slate-500 font-semibold">{day.dayOfWeek}</td>
                             <td className="p-4">
                               <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
-                                day.status === 'Present'
+                                (day.status === 'Present' || day.status === 'Work from Home')
                                   ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                                   : day.status === 'Late'
                                   ? 'bg-red-50 text-red-500 border border-red-100'
@@ -3345,7 +3388,7 @@ export default function Attendance() {
                       {gridCells.map((cell, idx) => {
                         if (cell.type === 'empty') return <div key={`empty-${idx}`} />;
                         let colorClass = 'bg-white border border-slate-100 hover:border-slate-300 text-slate-600';
-                        if (cell.status === 'Present') colorClass = 'bg-green-500 text-white font-black shadow-xs border-0';
+                        if (cell.status === 'Present' || cell.status === 'Work from Home') colorClass = 'bg-green-500 text-white font-black shadow-xs border-0';
                         else if (cell.status === 'Late') colorClass = 'bg-amber-400 text-white font-black shadow-xs border-0';
                         else if (cell.status === 'Absent') colorClass = 'bg-red-500 text-white font-black shadow-xs border-0';
                         else if (cell.status === 'Weekend') colorClass = 'bg-slate-50 text-slate-400 border border-slate-200';
@@ -3385,6 +3428,7 @@ export default function Attendance() {
                               <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block mb-1">Status</span>
                               <select value={editAttendanceForm.status} onChange={(e) => setEditAttendanceForm({ ...editAttendanceForm, status: e.target.value })} className="w-full bg-white border border-[#DEDCD8] rounded-xl text-xs font-bold text-slate-800 p-2 outline-none">
                                 <option value="Present">Present</option>
+                                <option value="Work from Home">Work from Home</option>
                                 <option value="Absent">Absent</option>
                                 <option value="Half Day">Half Day</option>
                                 <option value="Leave">Leave</option>
@@ -3413,7 +3457,7 @@ export default function Attendance() {
                         <>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-slate-800 font-extrabold">{selectedDayDetails.dateLabel}</span>
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase text-white ${selectedDayDetails.status === 'Present' ? 'bg-green-500' : selectedDayDetails.status === 'Late' ? 'bg-amber-400' : selectedDayDetails.status === 'Absent' ? 'bg-red-500' : selectedDayDetails.status === 'Holiday' ? 'bg-[#8B5CF6]' : selectedDayDetails.status.includes('Leave') ? 'bg-[#3B82F6]' : 'bg-slate-400'}`}>{selectedDayDetails.status}</span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase text-white ${(selectedDayDetails.status === 'Present' || selectedDayDetails.status === 'Work from Home') ? 'bg-green-500' : selectedDayDetails.status === 'Late' ? 'bg-amber-400' : selectedDayDetails.status === 'Absent' ? 'bg-red-500' : selectedDayDetails.status === 'Holiday' ? 'bg-[#8B5CF6]' : selectedDayDetails.status.includes('Leave') ? 'bg-[#3B82F6]' : 'bg-slate-400'}`}>{selectedDayDetails.status}</span>
                           </div>
                           {selectedDayDetails.log && selectedDayDetails.log.checkIn && selectedDayDetails.log.checkIn !== '-' ? (
                             <div className="flex gap-6 text-xs pt-1">
@@ -3481,6 +3525,7 @@ export default function Attendance() {
                     className="w-full bg-white border border-[#DEDCD8] rounded-xl text-xs font-bold text-slate-800 p-2.5 outline-none focus:border-indigo-400"
                   >
                     <option value="Present">Present (On-time)</option>
+                    <option value="Work from Home">Work from Home</option>
                     <option value="Late">Late</option>
                     <option value="Half Day">Half Day</option>
                     <option value="Absent">Absent</option>

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowRight, X, Lock, Eye, EyeOff } from 'lucide-react';
 import Card from '../../components/Card';
 import { DynamicIcon } from '../../components/Sidebar';
 import { COLORS } from '../../constants/Colors';
@@ -10,6 +10,33 @@ import { PERMISSIONS } from '../../constants/Permissions';
 const Modules = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [pendingRoute, setPendingRoute] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const handleModuleClick = (mod) => {
+    if (mod.code === PERMISSIONS.ACCESS_FEES) {
+      setPendingRoute(mod.route);
+      setShowPasswordModal(true);
+      setPasswordInput('');
+      setPasswordError('');
+    } else {
+      navigate(mod.route);
+    }
+  };
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (passwordInput === '7976451466') {
+      setShowPasswordModal(false);
+      navigate(pendingRoute);
+    } else {
+      setPasswordError('Incorrect password. Access denied.');
+    }
+  };
 
   // Dynamically load permitted modules lists from user profile claims and filter unknown ones
   const permittedModules = (user?.permissions || []).filter(mod => 
@@ -87,7 +114,7 @@ const Modules = () => {
               return (
                 <div
                   key={index}
-                  onClick={() => navigate(mod.route)}
+                  onClick={() => handleModuleClick(mod)}
                   style={gradientStyle}
                   className={`relative overflow-hidden flex flex-col justify-between p-6 rounded-[28px] border ${scheme.border} ${scheme.shadow} h-auto min-h-[350px] cursor-pointer transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl active:scale-98 group`}
                 >
@@ -125,6 +152,61 @@ const Modules = () => {
           </div>
         )}
       </div>
+
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden animate-slide-up relative">
+            <button 
+              onClick={() => setShowPasswordModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full transition-colors cursor-pointer border-0 outline-none"
+            >
+              <X size={16} />
+            </button>
+            <div className="p-6">
+              <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mb-4 border border-rose-100">
+                <Lock className="text-brand-red" size={24} />
+              </div>
+              <h3 className="text-lg font-black text-slate-800 mb-1 tracking-tight">Access Restricted</h3>
+              <p className="text-xs font-medium text-slate-500 mb-5">
+                Please enter the security password to access the Fees Management module.
+              </p>
+              
+              <form onSubmit={handlePasswordSubmit}>
+                <div className="space-y-4">
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      placeholder="Enter password"
+                      className="w-full bg-[#FAF9F6] border border-[#DEDCD8] rounded-xl p-3 pr-10 text-sm font-semibold text-slate-800 outline-none focus:border-slate-500 focus:bg-white transition-all text-center tracking-widest"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-[22px] -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors border-0 bg-transparent outline-none cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                    {passwordError && (
+                      <p className="text-brand-red text-[10px] font-bold mt-2 text-center">{passwordError}</p>
+                    )}
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    className="w-full bg-[#E31C1C] hover:bg-[#b81414] text-white rounded-xl text-sm font-bold py-3 cursor-pointer shadow-md shadow-brand-red/20 border-0 transition-all flex items-center justify-center gap-2 active:scale-95 outline-none"
+                  >
+                    Unlock Module
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

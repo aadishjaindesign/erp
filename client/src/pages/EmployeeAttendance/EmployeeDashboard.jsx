@@ -522,7 +522,7 @@ export default function EmployeeDashboard() {
 
   gridCells.forEach(cell => {
     if (cell.type === 'day' && cell.cellDate <= now) {
-      if (cell.status === 'Present') presentsCount++;
+      if (cell.status === 'Present' || cell.status === 'Work from Home') presentsCount++;
       else if (cell.status === 'Late') latesCount++;
       else if (cell.status === 'Absent') absentsCount++;
     }
@@ -923,7 +923,7 @@ export default function EmployeeDashboard() {
 
                     // Determine cell colors based on status (solid red/green)
                     let colorClass = 'bg-white border border-slate-100 hover:border-slate-350 text-slate-655';
-                    if (cell.status === 'Present') {
+                    if (cell.status === 'Present' || cell.status === 'Work from Home') {
                       colorClass = 'bg-green-500 text-white font-black shadow-xs border-0';
                     } else if (cell.status === 'Late') {
                       colorClass = 'bg-amber-400 text-white font-black shadow-xs border-0';
@@ -963,7 +963,7 @@ export default function EmployeeDashboard() {
 
                     {/* Status Badge */}
                     <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider text-white ${
-                      selectedDayDetails.status === 'Present'
+                      (selectedDayDetails.status === 'Present' || selectedDayDetails.status === 'Work from Home')
                         ? 'bg-green-500'
                         : selectedDayDetails.status === 'Late'
                         ? 'bg-amber-400'

@@ -440,7 +440,7 @@ exports.getAttendanceStats = async (req, res, next) => {
         return logTime >= startOfDay.getTime() && logTime <= endOfDay.getTime();
       });
 
-      const onTimeCount = logs.filter(log => log.status === 'Present').length;
+      const onTimeCount = logs.filter(log => log.status === 'Present' || log.status === 'Work from Home').length;
       const lateCount = logs.filter(log => log.status === 'Late').length;
 
       const istTarget = new Date(targetDate.getTime() + (5.5 * 60 * 60 * 1000));

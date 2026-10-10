@@ -37,8 +37,8 @@ const EMPTY_FORM = {
   course: '',
   counsellor: 'Khushi Soni',
   date: new Date().toISOString().slice(0, 10),
-  leadType: 'Cold',
   alternateContact: '',
+  remarks: '',
 };
 
 export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
@@ -53,6 +53,7 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
         date: editingLead.date || new Date().toISOString().slice(0, 10),
         leadType: editingLead.leadType || 'Cold',
         alternateContact: editingLead.alternateContact || '',
+        remarks: editingLead.remarks || '',
       };
     }
     return { ...EMPTY_FORM };
@@ -78,11 +79,12 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
       name: form.name.trim(),
       contact: form.contact.trim(),
       source: form.source || 'Walk-In',
-      course: form.course || 'Not Specified',
+      course: form.course || courseSearch.trim() || 'Not Specified',
       counsellor: form.counsellor || 'Khushi Soni',
       date: form.date,
       leadType: form.leadType || 'Cold',
-      alternateContact: form.alternateContact?.trim()
+      alternateContact: form.alternateContact?.trim(),
+      remarks: form.remarks?.trim()
     });
     if (!editingLead) handleReset();
   };
@@ -250,6 +252,18 @@ export default function OfflineLeadForm({ onSubmit, editingLead, onCancel }) {
               label="Enquiry Date *"
               value={form.date}
               onChange={val => set('date', val)}
+            />
+          </div>
+
+          {/* 7. Remarks */}
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Remarks / Conversation Notes</label>
+            <textarea
+              className={`${inputCls} resize-none`}
+              rows={3}
+              placeholder="Enter details of conversation with the lead..."
+              value={form.remarks}
+              onChange={e => set('remarks', e.target.value)}
             />
           </div>
         </div>

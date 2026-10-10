@@ -334,9 +334,10 @@ exports.getEmployeeMonthlyReport = async (req, res, next) => {
       // Find matching attendance log
       const record = attendanceRecords.find(r => {
         const d = new Date(r.date);
-        return d.getFullYear() === currentDate.getFullYear() &&
-               d.getMonth() === currentDate.getMonth() &&
-               d.getDate() === currentDate.getDate();
+        const dIst = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+        return dIst.getUTCFullYear() === currentDate.getFullYear() &&
+               dIst.getUTCMonth() === currentDate.getMonth() &&
+               dIst.getUTCDate() === currentDate.getDate();
       });
 
       const dayOfWeek = currentDate.getDay();
@@ -345,18 +346,24 @@ exports.getEmployeeMonthlyReport = async (req, res, next) => {
       // Check if this date has a declared holiday
       const matchedHoliday = holidays.find(h => {
         const hd = new Date(h.date);
-        return hd.getFullYear() === currentDate.getFullYear() &&
-               hd.getMonth() === currentDate.getMonth() &&
-               hd.getDate() === currentDate.getDate();
+        const hdIst = new Date(hd.getTime() + (5.5 * 60 * 60 * 1000));
+        return hdIst.getUTCFullYear() === currentDate.getFullYear() &&
+               hdIst.getUTCMonth() === currentDate.getMonth() &&
+               hdIst.getUTCDate() === currentDate.getDate();
       });
 
       // Check if this date falls within any approved leave
       const matchedLeave = approvedLeaves.find(l => {
         const s = new Date(l.startDate);
-        s.setHours(0, 0, 0, 0);
+        const sIst = new Date(s.getTime() + (5.5 * 60 * 60 * 1000));
+        sIst.setUTCHours(0, 0, 0, 0);
+        
         const e = new Date(l.endDate);
-        e.setHours(23, 59, 59, 999);
-        return currentDate >= s && currentDate <= e;
+        const eIst = new Date(e.getTime() + (5.5 * 60 * 60 * 1000));
+        eIst.setUTCHours(23, 59, 59, 999);
+        
+        const currentIst = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 12, 0, 0, 0));
+        return currentIst >= sIst && currentIst <= eIst;
       });
 
       let status = '-';
@@ -382,7 +389,7 @@ exports.getEmployeeMonthlyReport = async (req, res, next) => {
         }
       }
 
-      if (status === 'Present') presentCount++;
+      if (status === 'Present' || status === 'Work from Home') presentCount++;
       else if (status === 'Half Day') halfDayCount++;
       else if (status === 'Late') lateCount++;
       else if (status === 'Paid Leave' || status === 'Leave') paidLeaveCount++;
