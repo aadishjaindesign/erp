@@ -22,7 +22,7 @@ const allowedOrigins = [
   'https://jainsworkspace.com',
   'https://www.jainsworkspace.com',
   'https://api.jainsworkspace.com',
-  'https://erp-fiya.onrender.com',
+  'https://erpbackend.jainscomputer.com',
   'https://api.jainscomputer.com',
   'https://erp.jainscomputer.com',
   'https://jainscomputer.com',
