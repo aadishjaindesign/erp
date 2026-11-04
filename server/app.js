@@ -184,7 +184,8 @@ const routes = [
   { path: '/admin', router: require('./routes/admin/adminRoutes') },
   { path: '/admin/leaves', router: require('./routes/admin/leaveRoutes') },
   { path: '/attendance', router: require('./routes/attendance/attendanceRoutes') },
-  { path: '/certificates', router: require('./routes/certificate/certificateRoutes') }
+  { path: '/certificates', router: require('./routes/certificate/certificateRoutes') },
+  { path: '/bridge', router: require('./routes/bridge/bridgeRoutes') }
 ];
 
 routes.forEach(route => {

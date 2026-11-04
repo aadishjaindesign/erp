@@ -208,8 +208,10 @@ StudentSchema.virtual('invoices', {
   foreignField: 'studentId',
 });
 
-// Database indexes for fast querying
+// Database indexes for fast querying & ERP-LMS bridge lookups
 StudentSchema.index({ deletedAt: 1 });
+StudentSchema.index({ studentId: 1, mobile: 1 });
+StudentSchema.index({ studentId: 1, deletedAt: 1 });
 
 // Pre-save middleware to auto-generate a unique studentId if not provided (collision-free auto-increment counter)
 StudentSchema.pre('save', async function () {

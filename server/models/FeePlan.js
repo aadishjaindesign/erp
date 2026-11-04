@@ -129,4 +129,8 @@ FeePlanSchema.pre('validate', function () {
   }
 });
 
+// Database indexes for fast querying & ERP-LMS bridge lookups
+// Note: studentId is already uniquely indexed in the field definition
+FeePlanSchema.index({ studentId: 1, deletedAt: 1 });
+
 module.exports = mongoose.model('FeePlan', FeePlanSchema);

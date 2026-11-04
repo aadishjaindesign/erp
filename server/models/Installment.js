@@ -132,5 +132,7 @@ InstallmentSchema.index({ feePlanId: 1, installmentNo: 1 }, { unique: true });
 // Performance Indexes for reports, overdue scans, and student lookups
 InstallmentSchema.index({ deletedAt: 1, status: 1, dueDate: 1 });
 InstallmentSchema.index({ studentId: 1, deletedAt: 1 });
+InstallmentSchema.index({ studentId: 1, status: 1 });
+InstallmentSchema.index({ studentId: 1, status: 1, deletedAt: 1 });
 
 module.exports = mongoose.model('Installment', InstallmentSchema);
