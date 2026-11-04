@@ -72,6 +72,60 @@ export const usePayments = (studentId = null) => {
     }
   }, [studentId, fetchPaymentsList, fetchStudentPaymentsAndLogs]);
 
+  const updatePayment = async (paymentId, updatePayload) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await feesApi.updatePayment(paymentId, updatePayload);
+      if (studentId) {
+        await fetchStudentPaymentsAndLogs(studentId);
+      } else {
+        await fetchPaymentsList();
+      }
+      return res;
+    } catch (err) {
+      setError(err.userMessage || err.response?.data?.message || 'Failed to update payment.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deletePayment = async (paymentId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await feesApi.deletePayment(paymentId);
+      if (studentId) {
+        await fetchStudentPaymentsAndLogs(studentId);
+      } else {
+        await fetchPaymentsList();
+      }
+      return res;
+    } catch (err) {
+      setError(err.userMessage || err.response?.data?.message || 'Failed to delete payment.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reconcilePayments = async (targetStudentId = studentId) => {
+    if (!targetStudentId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await feesApi.reconcileStudentPayments(targetStudentId);
+      await fetchStudentPaymentsAndLogs(targetStudentId);
+      return res;
+    } catch (err) {
+      setError(err.userMessage || err.response?.data?.message || 'Failed to reconcile student dues.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     payments,
     studentPayments,
@@ -80,7 +134,10 @@ export const usePayments = (studentId = null) => {
     error,
     refetchPayments: fetchPaymentsList,
     refetchStudentData: () => fetchStudentPaymentsAndLogs(studentId),
-    collectPayment
+    collectPayment,
+    updatePayment,
+    deletePayment,
+    reconcilePayments
   };
 };
 

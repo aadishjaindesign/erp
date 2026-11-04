@@ -126,5 +126,6 @@ const admissionSchema = new mongoose.Schema(
 // Database indexes for fast querying & ERP-LMS bridge lookups
 admissionSchema.index({ enrollmentNo: 1, contact: 1 });
 admissionSchema.index({ contact: 1 });
+admissionSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Admission', admissionSchema);

@@ -4,9 +4,24 @@ import { authApi } from '../api/authApi';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
-  const [loading, setLoading] = useState(true);
+  // Pre-load cached user for 0ms instantaneous route resolution
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('erp_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [token, setToken] = useState(() => localStorage.getItem('token') || '');
+
+  // Only show blocking loader if a token exists but user details are completely unknown
+  const [loading, setLoading] = useState(() => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('erp_user');
+    return Boolean(savedToken && !savedUser);
+  });
 
   const logout = useCallback(async (reason = 'user_initiated', endpoint = null, status = null) => {
     console.log(`[AUTH] LOGOUT_TRIGGERED reason=${reason} endpoint=${endpoint} status=${status}`);
@@ -18,6 +33,7 @@ export const AuthProvider = ({ children }) => {
       console.warn('Backend session cleanup skipped or offline:', error.message);
     } finally {
       localStorage.removeItem('token');
+      localStorage.removeItem('erp_user');
       setToken('');
       setUser(null);
     }
@@ -29,6 +45,7 @@ export const AuthProvider = ({ children }) => {
         try {
           const data = await authApi.getMe();
           setUser(data.user);
+          localStorage.setItem('erp_user', JSON.stringify(data.user));
         } catch (error) {
           console.error('Auth verification failed:', error);
           // Only logout if it is an explicit 401 Unauthorized from the server
@@ -60,6 +77,7 @@ export const AuthProvider = ({ children }) => {
       const { token: userToken, user: userData } = data;
 
       localStorage.setItem('token', userToken);
+      localStorage.setItem('erp_user', JSON.stringify(userData));
       setToken(userToken);
       setUser(userData);
       return { success: true };

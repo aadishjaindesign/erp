@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, User, Phone, Mail, BookOpen, 
   Calendar, CreditCard, CheckCircle2, AlertTriangle, 
-  FileText, CircleDot, Clock, Eye, AlertCircle, RefreshCw, X
+  FileText, CircleDot, Clock, Eye, AlertCircle, RefreshCw, X, Edit2, Trash2
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useSystemSettings } from '../context/SettingsContext';
@@ -22,7 +22,17 @@ const StudentProfile = ({ studentId, onNavigate }) => {
   // Custom data hooks
   const { studentProfile, loading: studentLoading, error: studentError, refetchProfile } = useStudents(studentId);
   const { feePlan, installments, loading: planLoading, error: planError, refetch: refetchPlan } = useFeePlans(studentId);
-  const { studentPayments, activityLogs, loading: paymentsLoading, error: paymentsError, refetchStudentData, collectPayment } = usePayments(studentId);
+  const { 
+    studentPayments, 
+    activityLogs, 
+    loading: paymentsLoading, 
+    error: paymentsError, 
+    refetchStudentData, 
+    collectPayment,
+    updatePayment,
+    deletePayment,
+    reconcilePayments
+  } = usePayments(studentId);
 
   const safeInstallments = installments || [];
   const safePayments = studentPayments || [];
@@ -42,6 +52,70 @@ const StudentProfile = ({ studentId, onNavigate }) => {
   });
 
   const [toast, setToast] = useState(null);
+
+  // Edit Payment State
+  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [editPaymentForm, setEditPaymentForm] = useState({
+    amount: '',
+    paymentMode: 'UPI',
+    paymentType: 'INSTALLMENT_PAYMENT',
+    remarks: '',
+    transactionId: '',
+    paymentDate: ''
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // Delete Payment State
+  const [deletePaymentTarget, setDeletePaymentTarget] = useState(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  const openEditPaymentModal = (pay) => {
+    setEditingPayment(pay);
+    setEditPaymentForm({
+      amount: pay.amount || '',
+      paymentMode: pay.paymentMode || 'UPI',
+      paymentType: pay.paymentType || 'INSTALLMENT_PAYMENT',
+      remarks: pay.remarks || '',
+      transactionId: pay.transactionId || '',
+      paymentDate: pay.paymentDate ? new Date(pay.paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+    });
+    setIsEditPaymentModalOpen(true);
+  };
+
+  const handleEditPaymentSubmit = async (e) => {
+    e.preventDefault();
+    if (!editPaymentForm.amount || parseFloat(editPaymentForm.amount) <= 0) {
+      showToast('Please enter a valid payment amount.', 'error');
+      return;
+    }
+    setEditSubmitting(true);
+    try {
+      await updatePayment(editingPayment._id, editPaymentForm);
+      showToast('Payment updated! Student installments and remaining dues recalculated.');
+      setIsEditPaymentModalOpen(false);
+      handleRefreshAll();
+    } catch (err) {
+      showToast(err.userMessage || err.response?.data?.message || 'Failed to update payment.', 'error');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDeletePaymentConfirm = async () => {
+    if (!deletePaymentTarget) return;
+    setDeleteSubmitting(true);
+    try {
+      await deletePayment(deletePaymentTarget._id);
+      showToast('Payment deleted! Student balance and installments updated.');
+      setDeletePaymentTarget(null);
+      handleRefreshAll();
+    } catch (err) {
+      showToast(err.userMessage || err.response?.data?.message || 'Failed to delete payment.', 'error');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -428,10 +502,29 @@ const StudentProfile = ({ studentId, onNavigate }) => {
 
           {/* Payment Collection Transactions History */}
           <div className="bg-white border border-[#EBEAE6] rounded-2xl p-5 shadow-sm space-y-4">
-            <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider pb-2 border-b border-[#FAF9F6] flex items-center gap-1.5">
-              <CreditCard size={14} className="text-emerald-500" />
-              <span>Payments Collation History</span>
-            </h4>
+            <div className="flex items-center justify-between pb-2 border-b border-[#FAF9F6]">
+              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard size={14} className="text-emerald-500" />
+                <span>Payments Collation History</span>
+              </h4>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await reconcilePayments(studentId);
+                    handleRefreshAll();
+                    showToast('Finances & installments reconciled successfully!');
+                  } catch (err) {
+                    showToast('Failed to reconcile installments.', 'error');
+                  }
+                }}
+                className="px-2.5 py-1 text-[10px] font-bold border border-[#DEDCD8] bg-white hover:bg-[#FAF9F6] text-slate-600 rounded-lg flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                title="Re-sync installments with payments"
+              >
+                <RefreshCw size={11} className={paymentsLoading ? 'animate-spin' : ''} />
+                <span>Sync Installments</span>
+              </button>
+            </div>
 
             {paymentsLoading ? <Loader inline message="Syncing ledger registry..." /> : (
               <div className="overflow-x-auto">
@@ -444,6 +537,7 @@ const StudentProfile = ({ studentId, onNavigate }) => {
                       <th className="pb-3">Payment Date</th>
                       <th className="pb-3">Amount</th>
                       <th className="pb-3">Status</th>
+                      <th className="pb-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#FAF9F6]">
@@ -462,11 +556,31 @@ const StudentProfile = ({ studentId, onNavigate }) => {
                           )}
                         </td>
                         <td className="py-2.5"><StatusBadge status="PAID" /></td>
+                        <td className="py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditPaymentModal(pay)}
+                              className="p-1.5 rounded-lg border border-[#DEDCD8] bg-white text-blue-600 hover:bg-blue-50 transition-all cursor-pointer shadow-2xs"
+                              title="Edit payment amount / details"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletePaymentTarget(pay)}
+                              className="p-1.5 rounded-lg border border-[#DEDCD8] bg-white text-rose-600 hover:bg-rose-50 transition-all cursor-pointer shadow-2xs"
+                              title="Delete payment & recalculate"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                     {safePayments.length === 0 && (
                       <tr>
-                        <td colSpan="6" className="py-8 text-center text-slate-400 font-bold text-[11px]">No transactions cataloged.</td>
+                        <td colSpan="7" className="py-8 text-center text-slate-400 font-bold text-[11px]">No transactions cataloged.</td>
                       </tr>
                     )}
                   </tbody>
@@ -632,6 +746,167 @@ const StudentProfile = ({ studentId, onNavigate }) => {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Payment Modal */}
+      {isEditPaymentModalOpen && editingPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white border border-[#EBEAE6] rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4">
+            
+            <div className="flex justify-between items-center pb-3 border-b border-[#FAF9F6]">
+              <div>
+                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Edit Collected Payment</h4>
+                <p className="text-[10px] text-slate-400 font-medium">Modifying amount will automatically rebalance installments and dues.</p>
+              </div>
+              <button 
+                onClick={() => setIsEditPaymentModalOpen(false)}
+                className="p-1 rounded-lg border border-slate-200 hover:bg-[#FAF9F6] text-slate-400 hover:text-slate-600 transition-all cursor-pointer outline-none"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditPaymentSubmit} className="space-y-4 text-xs font-bold text-slate-655">
+              
+              <div className="space-y-1">
+                <label className="block text-[10px] uppercase text-slate-400 font-bold">Payment Amount (₹) *</label>
+                <input 
+                  type="number"
+                  min="1"
+                  step="any"
+                  value={editPaymentForm.amount}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#DEDCD8] rounded-xl font-extrabold text-slate-800 text-sm outline-none focus:border-amber-400"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-3.5">
+                <div className="space-y-1 flex-1">
+                  <label className="block text-[10px] uppercase text-slate-400 font-bold">Payment Mode</label>
+                  <select 
+                    value={editPaymentForm.paymentMode}
+                    onChange={(e) => setEditPaymentForm({ ...editPaymentForm, paymentMode: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#DEDCD8] bg-white rounded-xl font-bold cursor-pointer outline-none focus:border-amber-400"
+                  >
+                    <option value="UPI">UPI / GPay</option>
+                    <option value="Cash">Cash Sale</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque Deposit</option>
+                    <option value="Card">Card</option>
+                    <option value="Net Banking">Net Banking</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 flex-1">
+                  <label className="block text-[10px] uppercase text-slate-400 font-bold">Payment Type</label>
+                  <select 
+                    value={editPaymentForm.paymentType}
+                    onChange={(e) => setEditPaymentForm({ ...editPaymentForm, paymentType: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#DEDCD8] bg-white rounded-xl font-bold cursor-pointer outline-none focus:border-amber-400"
+                  >
+                    <option value="INSTALLMENT_PAYMENT">Installment Payment</option>
+                    <option value="INITIAL_PAYMENT">Initial / Admission</option>
+                    <option value="PARTIAL_PAYMENT">Partial Payment</option>
+                    <option value="ADVANCE_PAYMENT">Advance Payment</option>
+                    <option value="FULL_PAYMENT">Full Plan Settlement</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] uppercase text-slate-400 font-bold">Payment Date</label>
+                <input 
+                  type="date"
+                  value={editPaymentForm.paymentDate}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, paymentDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#DEDCD8] bg-white rounded-xl font-semibold outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] uppercase text-slate-400 font-bold">Transaction / Ref ID</label>
+                <input 
+                  type="text"
+                  value={editPaymentForm.transactionId}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, transactionId: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#DEDCD8] rounded-xl font-semibold outline-none focus:border-amber-400"
+                  placeholder="e.g. UPI Ref / Cash Sale"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] uppercase text-slate-400 font-bold">Remarks / Correction Note</label>
+                <input 
+                  type="text"
+                  value={editPaymentForm.remarks}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, remarks: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#DEDCD8] rounded-xl font-semibold outline-none focus:border-amber-400"
+                  placeholder="e.g. Corrected staff collection amount"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditPaymentModalOpen(false)}
+                  disabled={editSubmitting}
+                  className="w-full py-2 border border-[#DEDCD8] bg-white text-slate-600 hover:bg-[#FAF9F6] rounded-xl font-bold cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold cursor-pointer transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                >
+                  {editSubmitting ? <RefreshCw size={12} className="animate-spin" /> : null}
+                  <span>Update & Rebalance</span>
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Payment Confirmation Modal */}
+      {deletePaymentTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-sm bg-white border border-[#EBEAE6] rounded-3xl shadow-2xl p-6 space-y-4">
+            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-100">
+              <Trash2 size={24} />
+            </div>
+            <div className="text-center space-y-1">
+              <h4 className="text-sm font-black text-slate-800">Delete Payment Entry?</h4>
+              <p className="text-xs text-slate-500 font-medium">
+                Are you sure you want to delete this payment of <span className="font-extrabold text-slate-800">{formatINR(deletePaymentTarget.amount)}</span>?
+              </p>
+              <p className="text-[11px] text-amber-600 font-semibold bg-amber-50 p-2 rounded-xl mt-2 border border-amber-100">
+                The student's fee plan and installments will be automatically recalculated according to remaining valid payments.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletePaymentTarget(null)}
+                disabled={deleteSubmitting}
+                className="w-full py-2.5 border border-[#DEDCD8] bg-white text-slate-600 hover:bg-[#FAF9F6] rounded-xl font-bold cursor-pointer disabled:opacity-50 text-xs"
+              >
+                Keep Payment
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePaymentConfirm}
+                disabled={deleteSubmitting}
+                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold cursor-pointer transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 text-xs"
+              >
+                {deleteSubmitting ? <RefreshCw size={12} className="animate-spin" /> : null}
+                <span>Delete & Recalculate</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

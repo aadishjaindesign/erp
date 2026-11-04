@@ -53,6 +53,11 @@ class StudentService {
    * @param {string} id - Student database Object ID.
    */
   async getStudentProfile(id) {
+    const paymentService = require('./paymentService');
+    await paymentService.reconcileStudentFinancials(id).catch(err => {
+      console.warn('Reconcile warning on getStudentProfile:', err.message);
+    });
+
     const student = await studentRepository.findById(id);
     if (!student) {
       throw new NotFoundError('Student profile not found.');
@@ -64,8 +69,8 @@ class StudentService {
    * Retrieve list of students matching filter/pagination criteria.
    * @param {Object} queryParams - Search, pagination, filtering, and sort fields.
    */
-  async listStudents(queryParams) {
-    const { search, status, course, page = 1, limit = 10, sort = 'newest' } = queryParams;
+  async listStudents(queryParams = {}) {
+    const { search, status, course, page, limit, sort = 'newest' } = queryParams;
     const queryFilter = {};
 
     // Specific filters
@@ -96,9 +101,11 @@ class StudentService {
       sortObj = { fullName: 1 };
     }
 
-    const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.max(1, parseInt(limit));
-    const skip = (pageNum - 1) * limitNum;
+    // If limit is not passed or is '0' or 'all', return all records without pagination truncation
+    const hasLimit = limit !== undefined && limit !== null && limit !== '' && limit !== '0' && limit !== 'all';
+    const limitNum = hasLimit ? Math.max(1, parseInt(limit)) : 0;
+    const pageNum = page ? Math.max(1, parseInt(page)) : 1;
+    const skip = limitNum > 0 ? (pageNum - 1) * limitNum : 0;
 
     const { students, total } = await studentRepository.find(queryFilter, sortObj, skip, limitNum);
 
@@ -106,8 +113,8 @@ class StudentService {
       students,
       total,
       page: pageNum,
-      limit: limitNum,
-      totalPages: Math.ceil(total / limitNum)
+      limit: limitNum || total,
+      totalPages: limitNum > 0 ? Math.ceil(total / limitNum) : 1
     };
   }
 

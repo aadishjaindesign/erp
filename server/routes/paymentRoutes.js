@@ -4,6 +4,9 @@ const {
   createPayment,
   getPayments,
   getPaymentById,
+  updatePayment,
+  deletePayment,
+  reconcileStudent,
   getPaymentsByStudent,
   getStudentActivityLogs
 } = require('../controllers/paymentController');
@@ -19,6 +22,9 @@ router.use(authorize('access_fees'));
 router.post('/', validatePaymentInput, createPayment);
 router.get('/', getPayments);
 router.get('/:id', getPaymentById);
+router.put('/:id', updatePayment);
+router.delete('/:id', deletePayment);
+router.post('/reconcile/:studentId', reconcileStudent);
 router.get('/student/:studentId', getPaymentsByStudent);
 router.get('/logs/student/:studentId', getStudentActivityLogs);
 

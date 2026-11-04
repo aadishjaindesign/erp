@@ -6,6 +6,7 @@ import { TableSkeleton } from './Skeleton';
 
 /**
  * CommonTable - Standardized data table for ERP lists.
+ * Supports smooth scrollable view without pagination truncation.
  */
 const CommonTable = ({
   columns = [],
@@ -16,7 +17,8 @@ const CommonTable = ({
   onSearchChange,
   searchQuery = "",
   filters = null,
-  itemsPerPage = 10,
+  itemsPerPage = 1000,
+  showPagination = false,
   expandable = false,
   renderExpandedRow = null,
 }) => {
@@ -42,12 +44,14 @@ const CommonTable = ({
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
   
   // Reset page when search query or dataset changes
-  React.useEffect(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, data.length]);
 
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = displayData.slice(startIndex, startIndex + itemsPerPage);
+  const currentItems = showPagination 
+    ? displayData.slice(startIndex, startIndex + itemsPerPage) 
+    : displayData;
 
   return (
     <div className="space-y-4">
@@ -67,54 +71,56 @@ const CommonTable = ({
 
       {/* Main Table Wrapper */}
       {loading ? (
-        <TableSkeleton rows={itemsPerPage} cols={columns.length} />
+        <TableSkeleton rows={itemsPerPage < 20 ? itemsPerPage : 8} cols={columns.length} />
       ) : currentItems.length === 0 ? (
         <EmptyState message={emptyMessage} />
       ) : (
-        <div className="w-full overflow-x-auto bg-white border border-[#EBEAE6] rounded-2xl shadow-sm">
-          <div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-655">
-            <thead>
-              <tr className="border-b border-[#EBEAE6] bg-[#FAF9F6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                {columns.map((col, idx) => (
-                  <th key={idx} className={`px-6 py-4 ${col.className || ''}`}>
-                    {col.header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#FAF9F6]">
-              {currentItems.map((row, rIdx) => {
-                const rowKey = row._id || row.id || rIdx;
-                const isExpanded = expandedRows.includes(rowKey);
-                return (
-                  <React.Fragment key={rowKey}>
-                    <tr 
-                      onClick={() => expandable && toggleRow(rowKey)} 
-                      className={`hover:bg-[#FAF9F6]/40 transition-colors ${expandable ? 'cursor-pointer' : ''} ${isExpanded ? 'bg-[#FAF9F6]/40' : ''}`}
-                    >
-                      {columns.map((col, cIdx) => (
-                        <td key={cIdx} className={`px-6 py-3.5 ${col.className || ''}`}>
-                          {col.render ? col.render(row, isExpanded) : row[col.accessor]}
-                        </td>
-                      ))}
-                    </tr>
-                    {expandable && isExpanded && renderExpandedRow && (
-                      <tr className="bg-[#FAF9F6]/20">
-                        <td colSpan={columns.length} className="p-0 border-b border-[#EBEAE6]">
-                          {renderExpandedRow(row)}
-                        </td>
+        <div className="w-full overflow-hidden bg-white border border-[#EBEAE6] rounded-2xl shadow-sm">
+          <div className="w-full overflow-x-auto max-h-[680px] overflow-y-auto">
+            <table className="w-full text-left border-collapse text-xs font-semibold text-slate-655 relative">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-[#EBEAE6] bg-[#FAF9F6] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  {columns.map((col, idx) => (
+                    <th key={idx} className={`px-6 py-4 bg-[#FAF9F6] ${col.className || ''}`}>
+                      {col.header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#FAF9F6]">
+                {currentItems.map((row, rIdx) => {
+                  const rowKey = row._id || row.id || rIdx;
+                  const isExpanded = expandedRows.includes(rowKey);
+                  return (
+                    <React.Fragment key={rowKey}>
+                      <tr 
+                        onClick={() => expandable && toggleRow(rowKey)} 
+                        className={`hover:bg-[#FAF9F6]/40 transition-colors ${expandable ? 'cursor-pointer' : ''} ${isExpanded ? 'bg-[#FAF9F6]/40' : ''}`}
+                      >
+                        {columns.map((col, cIdx) => (
+                          <td key={cIdx} className={`px-6 py-3.5 ${col.className || ''}`}>
+                            {col.render ? col.render(row, isExpanded) : row[col.accessor]}
+                          </td>
+                        ))}
                       </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table></div>
+                      {expandable && isExpanded && renderExpandedRow && (
+                        <tr className="bg-[#FAF9F6]/20">
+                          <td colSpan={columns.length} className="p-0 border-b border-[#EBEAE6]">
+                            {renderExpandedRow(row)}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Pagination Controls */}
-      {!loading && (
+      {/* Pagination Controls — only shown if enabled and multiple pages exist */}
+      {!loading && showPagination && totalPages > 1 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}

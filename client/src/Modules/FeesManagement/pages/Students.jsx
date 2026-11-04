@@ -315,7 +315,7 @@ const Students = ({ onNavigate, setSelectedStudentId }) => {
         searchPlaceholder="Search Name, ID, Email, Phone..."
         emptyMessage="No student records found matching selections."
         filters={dropdownFilters}
-        itemsPerPage={15}
+        showPagination={false}
       />
 
       {/* Edit Student Modal Drawer */}

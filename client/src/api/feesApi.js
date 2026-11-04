@@ -5,8 +5,8 @@ import axiosInstance from './axios';
  */
 export const feesApi = {
   // --- Student profiles ---
-  getStudents: async () => {
-    const response = await axiosInstance.get('/students');
+  getStudents: async (params = {}) => {
+    const response = await axiosInstance.get('/students', { params: { limit: 0, ...params } });
     return response.data;
   },
 
@@ -80,6 +80,21 @@ export const feesApi = {
   // --- Manual Payment Collection ---
   collectPayment: async (paymentData) => {
     const response = await axiosInstance.post('/payments', paymentData);
+    return response.data;
+  },
+
+  updatePayment: async (id, updateData) => {
+    const response = await axiosInstance.put(`/payments/${id}`, updateData);
+    return response.data;
+  },
+
+  deletePayment: async (id) => {
+    const response = await axiosInstance.delete(`/payments/${id}`);
+    return response.data;
+  },
+
+  reconcileStudentPayments: async (studentId) => {
+    const response = await axiosInstance.post(`/payments/reconcile/${studentId}`);
     return response.data;
   },
 

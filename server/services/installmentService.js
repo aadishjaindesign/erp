@@ -224,6 +224,17 @@ class InstallmentService {
     }
 
     let installments = await installmentRepository.findByStudentId(studentId);
+
+    // Auto-reconcile installments with payments if out of sync
+    const totalInstPaid = installments.reduce((acc, i) => acc + (Number(i.paidAmount) || 0), 0);
+    if (feePlan.paidAmount !== totalInstPaid) {
+      const paymentService = require('./paymentService');
+      await paymentService.reconcileStudentFinancials(studentId).catch(err => {
+        console.warn('Auto-reconcile warning on listInstallments:', err.message);
+      });
+      installments = await installmentRepository.findByStudentId(studentId);
+    }
+
     const today = new Date();
 
     // Auto Status Checker & Indicator formulation

@@ -121,7 +121,7 @@ const createLead = async (req, res) => {
 
 const getLeads = async (req, res) => {
   try {
-    const leads = await Lead.find().sort({ createdAt: -1 });
+    const leads = await Lead.find().sort({ createdAt: -1 }).lean();
     res.json({ data: leads });
   } catch (err) {
     res.status(500).json({ message: "Error fetching leads" });
@@ -563,7 +563,7 @@ const updateAdmittedStudent = async (req, res) => {
 
 const getAdmittedStudents = async (req, res) => {
   try {
-    const admissions = await Admission.find().sort({ createdAt: -1 });
+    const admissions = await Admission.find().sort({ createdAt: -1 }).lean();
     res.status(200).json({ success: true, data: admissions });
   } catch (error) {
     console.error("❌ Fetch Admissions Error:", error.message);

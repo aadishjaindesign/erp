@@ -65,14 +65,20 @@ class StudentRepository {
   async find(queryFilter, sortObj, skip, limit) {
     const filter = { ...queryFilter, deletedAt: null };
     
-    const students = await Student.find(filter)
+    let query = Student.find(filter)
       .sort(sortObj)
-      .skip(skip)
-      .limit(limit)
       .populate('createdBy', 'name email')
       .populate('feePlan')
       .lean();
 
+    if (skip && skip > 0) {
+      query = query.skip(skip);
+    }
+    if (limit && limit > 0) {
+      query = query.limit(limit);
+    }
+
+    const students = await query;
     const total = await Student.countDocuments(filter);
     return { students, total };
   }

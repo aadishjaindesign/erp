@@ -12,9 +12,11 @@ export const useLeads = () => {
     if (isFetchingRef.current && !force) return;
     isFetchingRef.current = true;
     try {
-      setLoading(true);
+      if (leads.length === 0) {
+        setLoading(true);
+      }
       setError(null);
-      const data = await leadService.getLeads();
+      const data = await leadService.getLeads(force);
       setLeads(data || []);
     } catch (err) {
       setError(err.userMessage || err.message || 'Failed to fetch leads from server.');
@@ -23,7 +25,7 @@ export const useLeads = () => {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, []);
+  }, [leads.length]);
 
   // Auto-refresh countdown (45 seconds)
   useEffect(() => {

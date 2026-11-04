@@ -38,10 +38,43 @@ const Modules = () => {
     }
   };
 
+  // Default system modules available across ERP
+  const defaultModules = [
+    {
+      module: 'Attendance Module',
+      code: PERMISSIONS.ACCESS_ATTENDANCE,
+      route: '/attendance',
+      icon: 'ClipboardList'
+    },
+    {
+      module: 'Fees Management',
+      code: PERMISSIONS.ACCESS_FEES,
+      route: '/fees-management',
+      icon: 'DollarSign'
+    },
+    {
+      module: 'Lead Management',
+      code: PERMISSIONS.ACCESS_LEADS,
+      route: '/lead-management',
+      icon: 'UserCheck'
+    },
+    {
+      module: 'Certificate Management',
+      code: PERMISSIONS.ACCESS_CERTIFICATES,
+      route: '/certificate-management',
+      icon: 'Award'
+    }
+  ];
+
   // Dynamically load permitted modules lists from user profile claims and filter unknown ones
-  const permittedModules = (user?.permissions || []).filter(mod => 
+  const rawPermitted = (user?.permissions || []).filter(mod => 
     Object.values(PERMISSIONS).includes(mod.code)
   );
+
+  const isSuperAdmin = !user?.role || user?.role === 'Super Admin' || user?.role === 'Admin' || user?.role?.toLowerCase()?.includes('admin');
+
+  // Fallback to defaultModules if user is admin or if permissions array is empty
+  const permittedModules = (isSuperAdmin || rawPermitted.length === 0) ? defaultModules : rawPermitted;
 
   // A helper map to assign specific accent color gradients for card aesthetics
   const colorSchemes = {

@@ -8,21 +8,78 @@ const leadAxios = axios.create({
   headers: API_CONFIG.HEADERS
 });
 
-// Attach auth token if available
+// Fast In-Memory Response Cache for Lead Management GET queries
+const leadCache = new Map();
+const LEAD_CACHE_TTL_MS = 20000;
+
+export const clearLeadCache = () => {
+  leadCache.clear();
+};
+
+// Request Interceptor: Attach auth token & memory cache
 leadAxios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+
+    const method = (config.method || 'get').toLowerCase();
+
+    // Clear cache immediately on data changes (create, edit, delete, status change)
+    if (method !== 'get') {
+      clearLeadCache();
+      return config;
+    }
+
+    const requestKey = `${config.baseURL || ''}${config.url}?${JSON.stringify(config.params || {})}`;
+
+    if (!config.skipCache && leadCache.has(requestKey)) {
+      const entry = leadCache.get(requestKey);
+      if (Date.now() - entry.timestamp < LEAD_CACHE_TTL_MS) {
+        config.adapter = async () => ({
+          data: JSON.parse(JSON.stringify(entry.data)),
+          status: entry.status || 200,
+          statusText: 'OK',
+          headers: { ...entry.headers, 'x-lead-cache': 'HIT' },
+          config,
+          request: {}
+        });
+        return config;
+      } else {
+        leadCache.delete(requestKey);
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
+// Response Interceptor: Store responses in cache
+leadAxios.interceptors.response.use(
+  (response) => {
+    const config = response.config || {};
+    const method = (config.method || 'get').toLowerCase();
+
+    if (method === 'get' && response.status === 200 && !config.skipCache) {
+      const requestKey = `${config.baseURL || ''}${config.url}?${JSON.stringify(config.params || {})}`;
+      leadCache.set(requestKey, {
+        data: response.data,
+        status: response.status,
+        headers: response.headers,
+        timestamp: Date.now()
+      });
+    }
+
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
+
 export const leadApi = {
-  getLeads: async () => {
-    const response = await leadAxios.get('/lead');
+  getLeads: async (forceRefresh = false) => {
+    const response = await leadAxios.get('/lead', { skipCache: forceRefresh });
     return response.data;
   },
 
@@ -97,8 +154,8 @@ export const leadApi = {
     return response.data;
   },
 
-  getAdmittedStudents: async () => {
-    const response = await leadAxios.get('/lead/admissions');
+  getAdmittedStudents: async (forceRefresh = false) => {
+    const response = await leadAxios.get('/lead/admissions', { skipCache: forceRefresh });
     return response.data;
   },
 

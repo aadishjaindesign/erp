@@ -48,4 +48,9 @@ const leadSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Indexes for fast querying, filtering, and sorting
+leadSchema.index({ createdAt: -1 });
+leadSchema.index({ status: 1 });
+leadSchema.index({ phone: 1 });
+
 module.exports = mongoose.model('Lead', leadSchema);

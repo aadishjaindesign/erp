@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, User, UserPlus, CreditCard, 
@@ -6,17 +6,17 @@ import {
   Settings as SettingsIcon, ArrowLeft, Menu, X, DollarSign 
 } from 'lucide-react';
 
-const Dashboard = lazy(() => import('./Dashboard'));
-const Students = lazy(() => import('./Students'));
-const StudentProfile = lazy(() => import('./StudentProfile'));
-const ManualEnrollment = lazy(() => import('./ManualEnrollment'));
-const Payments = lazy(() => import('./Payments'));
-const PaymentHistory = lazy(() => import('./PaymentHistory'));
-const Invoices = lazy(() => import('./Invoices'));
-const Receipts = lazy(() => import('./Receipts'));
-const Reports = lazy(() => import('./Reports'));
-const ActivityLogs = lazy(() => import('./ActivityLogs'));
-const Settings = lazy(() => import('./Settings'));
+import Dashboard from './Dashboard';
+import Students from './Students';
+import StudentProfile from './StudentProfile';
+import ManualEnrollment from './ManualEnrollment';
+import Payments from './Payments';
+import PaymentHistory from './PaymentHistory';
+import Invoices from './Invoices';
+import Receipts from './Receipts';
+import Reports from './Reports';
+import ActivityLogs from './ActivityLogs';
+import Settings from './Settings';
 import { SettingsProvider } from '../context/SettingsContext';
 
 const FeesManagement = () => {
@@ -234,13 +234,7 @@ const FeesManagement = () => {
 
         {/* RIGHT DISPLAY WINDOW: Renders the active subpage component */}
         <main className="flex-1 min-w-0 bg-transparent">
-          <Suspense fallback={
-            <div className="flex items-center justify-center p-12 bg-white border border-[#EBEAE6] rounded-2xl animate-pulse">
-              <div className="h-4 bg-slate-100 rounded w-1/4" />
-            </div>
-          }>
-            {renderSubpage()}
-          </Suspense>
+          {renderSubpage()}
         </main>
 
       </div>

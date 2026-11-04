@@ -1,9 +1,9 @@
 import { leadApi } from '../api/leadApi';
 
 export const leadService = {
-  getLeads: async () => {
+  getLeads: async (force = false) => {
     try {
-      const response = await leadApi.getLeads();
+      const response = await leadApi.getLeads(force);
       return response.data || [];
     } catch (error) {
       console.error('leadService.getLeads failed:', error);

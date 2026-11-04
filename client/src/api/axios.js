@@ -7,8 +7,17 @@ const axiosInstance = axios.create({
   headers: API_CONFIG.HEADERS
 });
 
-// Cache map for in-flight GET requests to prevent duplicate network hits
+// Fast In-Memory Response Cache for idempotent GET requests
+// Key -> { data, status, headers, timestamp }
+const responseCache = new Map();
 const inFlightRequests = new Map();
+
+// 20-second fast TTL for instant snappy UI navigation
+const CACHE_TTL_MS = 20000;
+
+export const clearApiCache = () => {
+  responseCache.clear();
+};
 
 /**
  * Format human-readable error messages based on HTTP status code
@@ -50,7 +59,7 @@ export const classifyApiError = (error) => {
   }
 };
 
-// Request Interceptor: Attach JWT Token automatically
+// Request Interceptor: Attach JWT Token & Instant In-Memory Cache
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -58,11 +67,31 @@ axiosInstance.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // Deduplicate identical in-flight GET requests
-    if (config.method === 'get' && !config.skipDeduplication) {
-      const requestKey = `${config.baseURL || ''}${config.url}?${JSON.stringify(config.params || {})}`;
-      if (inFlightRequests.has(requestKey)) {
-        config.adapter = () => inFlightRequests.get(requestKey);
+    const method = (config.method || 'get').toLowerCase();
+
+    // Invalidate cache on mutations (POST, PUT, PATCH, DELETE)
+    if (method !== 'get') {
+      clearApiCache();
+      return config;
+    }
+
+    const requestKey = `${config.baseURL || ''}${config.url}?${JSON.stringify(config.params || {})}`;
+
+    // 1. Check in-memory cache for instant 0ms responses
+    if (!config.skipCache && responseCache.has(requestKey)) {
+      const entry = responseCache.get(requestKey);
+      if (Date.now() - entry.timestamp < CACHE_TTL_MS) {
+        config.adapter = async () => ({
+          data: JSON.parse(JSON.stringify(entry.data)),
+          status: entry.status || 200,
+          statusText: 'OK',
+          headers: { ...entry.headers, 'x-erp-cache': 'HIT' },
+          config,
+          request: {}
+        });
+        return config;
+      } else {
+        responseCache.delete(requestKey);
       }
     }
 
@@ -71,30 +100,34 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Catch Token Expiries, Deduplication Cleanup & Error Formatting
+// Response Interceptor: Save to Fast Cache & Error Formatting
 axiosInstance.interceptors.response.use(
   (response) => {
-    // Clear completed GET request from in-flight cache
-    if (response.config?.method === 'get') {
-      const requestKey = `${response.config.baseURL || ''}${response.config.url}?${JSON.stringify(response.config.params || {})}`;
-      inFlightRequests.delete(requestKey);
+    const config = response.config || {};
+    const method = (config.method || 'get').toLowerCase();
+
+    if (method === 'get' && response.status === 200 && !config.skipCache) {
+      const requestKey = `${config.baseURL || ''}${config.url}?${JSON.stringify(config.params || {})}`;
+      responseCache.set(requestKey, {
+        data: response.data,
+        status: response.status,
+        headers: response.headers,
+        timestamp: Date.now()
+      });
     }
+
     return response;
   },
   (error) => {
-    if (error.config?.method === 'get') {
-      const requestKey = `${error.config.baseURL || ''}${error.config.url}?${JSON.stringify(error.config.params || {})}`;
-      inFlightRequests.delete(requestKey);
-    }
-
     // Attach categorized user message
     error.userMessage = classifyApiError(error);
 
     if (error.response && error.response.status === 401) {
       console.warn('Unauthorized request - session expired.');
-      // Only clear if on an authenticated user path, not a public login attempt
       if (!error.config?.url?.includes('/auth/login')) {
         localStorage.removeItem('token');
+        localStorage.removeItem('erp_user');
+        clearApiCache();
         window.dispatchEvent(new CustomEvent('auth-unauthorized', {
           detail: { url: error.config?.url }
         }));
@@ -106,4 +139,3 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
-

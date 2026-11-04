@@ -76,11 +76,48 @@ const getPaymentById = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Update an existing payment entry and automatically recalculate installment/fee balances.
+ * @route PUT /api/payments/:id
+ */
+const updatePayment = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const staffId = req.user.id || req.user._id;
+  const updated = await paymentService.updatePayment(id, req.body, staffId);
+  return sendSuccess(res, 'Payment updated and student dues recalculated successfully', updated, 200);
+});
+
+/**
+ * Delete a payment entry and automatically recalculate installment/fee balances.
+ * @route DELETE /api/payments/:id
+ */
+const deletePayment = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const staffId = req.user.id || req.user._id;
+  const result = await paymentService.deletePayment(id, staffId);
+  return sendSuccess(res, 'Payment deleted and student dues recalculated successfully', result, 200);
+});
+
+/**
+ * Reconcile a student's installments and fee status with all registered payments.
+ * @route POST /api/payments/reconcile/:studentId
+ */
+const reconcileStudent = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const result = await paymentService.reconcileStudentFinancials(studentId);
+  return sendSuccess(res, 'Student finances reconciled successfully', result, 200);
+});
+
+/**
  * Get payment logs registered for a specific student.
+ * Auto-syncs student installments with payments if any discrepancy exists.
  * @route GET /api/payments/student/:studentId
  */
 const getPaymentsByStudent = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
+  // Ensure installments & feePlan are in sync with payments
+  await paymentService.reconcileStudentFinancials(studentId).catch(err => {
+    console.warn('Reconcile notice on payment fetch:', err.message);
+  });
   const payments = await paymentService.getStudentPayments(studentId);
   return sendSuccess(res, 'Student payment history retrieved successfully', payments, 200);
 });
@@ -99,6 +136,9 @@ module.exports = {
   createPayment,
   getPayments,
   getPaymentById,
+  updatePayment,
+  deletePayment,
+  reconcileStudent,
   getPaymentsByStudent,
   getStudentActivityLogs
 };

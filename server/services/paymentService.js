@@ -369,6 +369,11 @@ class PaymentService {
       await session.commitTransaction();
       session.endSession();
 
+      // Ensure installments and fee plans are 100% reconciled
+      await this.reconcileStudentFinancials(studentId).catch(err => {
+        console.warn('Reconcile warning on collectPayment:', err.message);
+      });
+
       // Clear dashboard caches
       const cacheHelper = require('../utils/cacheHelper');
       cacheHelper.delByPattern('dashboard:*').catch(() => {});
@@ -419,6 +424,183 @@ class PaymentService {
    */
   async getStudentLogs(studentId) {
     return await activityLogRepository.findByStudentId(studentId);
+  }
+
+  /**
+   * Universal Financial Reconciliation Engine
+   * Synchronizes FeePlan paid/remaining balance and allocates payments sequentially across all installments.
+   * @param {string} studentId - Student database Object ID.
+   * @param {Object|null} session - Optional MongoDB session.
+   */
+  async reconcileStudentFinancials(studentId, session = null) {
+    const student = await studentRepository.findById(studentId, session);
+    if (!student) return null;
+
+    const feePlan = await feePlanRepository.findOne({ studentId }, session);
+    if (!feePlan) return null;
+
+    const Payment = require('../models/Payment');
+    const Installment = require('../models/Installment');
+    const Invoice = require('../models/Invoice');
+
+    // Fetch all active payments for this student in chronological order
+    const paymentsQuery = Payment.find({ studentId }).sort({ paymentDate: 1, createdAt: 1 });
+    if (session) paymentsQuery.session(session);
+    const payments = await paymentsQuery;
+
+    // Calculate total paid across all payments
+    const totalPaid = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    const totalFees = Number(feePlan.totalFees) || 0;
+    const remainingAmount = Math.max(0, totalFees - totalPaid);
+    const advanceCredit = Math.max(0, totalPaid - totalFees);
+
+    feePlan.paidAmount = totalPaid;
+    feePlan.remainingAmount = remainingAmount;
+    feePlan.advanceCreditBalance = advanceCredit;
+    feePlan.status = remainingAmount === 0 ? 'PAID' : (totalPaid > 0 ? 'PARTIAL' : 'PENDING');
+    await feePlan.save({ session: session || undefined });
+
+    // Fetch installments sorted by sequence
+    const installmentsQuery = Installment.find({ studentId, deletedAt: null }).sort({ installmentNo: 1, dueDate: 1 });
+    if (session) installmentsQuery.session(session);
+    const installments = await installmentsQuery;
+
+    if (installments && installments.length > 0) {
+      let runningCredit = totalPaid;
+      const today = new Date();
+
+      for (const inst of installments) {
+        const targetAmount = Number(inst.amount) || 0;
+
+        if (runningCredit >= targetAmount) {
+          inst.paidAmount = targetAmount;
+          inst.remainingAmount = 0;
+          inst.status = 'PAID';
+          if (!inst.paidDate) inst.paidDate = new Date();
+          runningCredit -= targetAmount;
+        } else if (runningCredit > 0) {
+          inst.paidAmount = runningCredit;
+          inst.remainingAmount = targetAmount - runningCredit;
+          inst.status = 'PARTIAL';
+          runningCredit = 0;
+        } else {
+          inst.paidAmount = 0;
+          inst.remainingAmount = targetAmount;
+          const isOverdue = inst.dueDate && new Date(inst.dueDate) < today;
+          inst.status = isOverdue ? 'OVERDUE' : 'PENDING';
+        }
+
+        await inst.save({ session: session || undefined });
+
+        // Update corresponding invoice if exists
+        const invQuery = Invoice.findOne({ studentId, installmentId: inst._id });
+        if (session) invQuery.session(session);
+        const inv = await invQuery;
+        if (inv) {
+          inv.status = inst.status;
+          inv.paidAmount = inst.paidAmount;
+          await inv.save({ session: session || undefined });
+        }
+      }
+    }
+
+    // Invalidate dashboard and report caches
+    const cacheHelper = require('../utils/cacheHelper');
+    await cacheHelper.delByPattern('dashboard:*').catch(() => {});
+    await cacheHelper.delByPattern('report:*').catch(() => {});
+
+    return { feePlan, installments, totalPaid, remainingAmount };
+  }
+
+  /**
+   * Update an existing payment and automatically rebalance student dues and installments.
+   * @param {string} paymentId - Payment Object ID.
+   * @param {Object} updateData - Updated payment attributes.
+   * @param {string} staffId - Operating staff user ID.
+   */
+  async updatePayment(paymentId, updateData, staffId) {
+    const Payment = require('../models/Payment');
+    const Receipt = require('../models/Receipt');
+
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      throw new NotFoundError('Payment transaction not found.');
+    }
+
+    const originalAmount = payment.amount;
+    const newAmount = updateData.amount !== undefined ? Number(updateData.amount) : originalAmount;
+
+    if (isNaN(newAmount) || newAmount <= 0) {
+      throw new BadRequestError('Payment amount must be greater than zero.');
+    }
+
+    // Update payment fields
+    if (updateData.amount !== undefined) payment.amount = newAmount;
+    if (updateData.paymentMode) payment.paymentMode = updateData.paymentMode;
+    if (updateData.paymentType) payment.paymentType = updateData.paymentType;
+    if (updateData.remarks !== undefined) payment.remarks = updateData.remarks;
+    if (updateData.transactionId !== undefined) payment.transactionId = updateData.transactionId;
+    if (updateData.paymentDate) payment.paymentDate = new Date(updateData.paymentDate);
+
+    await payment.save();
+
+    // Update associated Receipt if exists
+    const receipt = await Receipt.findOne({ paymentId: payment._id });
+    if (receipt) {
+      if (updateData.amount !== undefined) receipt.amount = newAmount;
+      if (updateData.paymentMode) receipt.paymentMode = updateData.paymentMode;
+      await receipt.save();
+    }
+
+    // Reconcile student finances
+    await this.reconcileStudentFinancials(payment.studentId);
+
+    // Audit log
+    await activityLogRepository.create({
+      action: 'PAYMENT_UPDATED',
+      description: `Payment ${payment._id} was modified from ₹${originalAmount} to ₹${newAmount} via ${payment.paymentMode}. Student dues and installment schedules automatically recalculated.`,
+      performedBy: staffId,
+      studentId: payment.studentId
+    });
+
+    return await paymentRepository.findById(payment._id);
+  }
+
+  /**
+   * Delete a payment and automatically rebalance student dues and installments.
+   * @param {string} paymentId - Payment Object ID.
+   * @param {string} staffId - Operating staff user ID.
+   */
+  async deletePayment(paymentId, staffId) {
+    const Payment = require('../models/Payment');
+    const Receipt = require('../models/Receipt');
+
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      throw new NotFoundError('Payment transaction not found.');
+    }
+
+    const studentId = payment.studentId;
+    const deletedAmount = payment.amount;
+
+    // Delete receipt
+    await Receipt.deleteOne({ paymentId: payment._id });
+
+    // Delete payment
+    await Payment.findByIdAndDelete(paymentId);
+
+    // Reconcile student finances
+    await this.reconcileStudentFinancials(studentId);
+
+    // Audit log
+    await activityLogRepository.create({
+      action: 'PAYMENT_DELETED',
+      description: `Payment ${paymentId} of ₹${deletedAmount} was deleted. Student dues and installment schedules automatically recalculated.`,
+      performedBy: staffId,
+      studentId: studentId
+    });
+
+    return { success: true, message: 'Payment deleted and finances reconciled successfully.' };
   }
 }
 
