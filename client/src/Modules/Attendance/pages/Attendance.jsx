@@ -685,8 +685,21 @@ export default function Attendance() {
   // Holiday Declaration States
   const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [holidayDate, setHolidayDate] = useState(new Date().toISOString().split('T')[0]);
+  const [holidayEndDate, setHolidayEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [holidayReason, setHolidayReason] = useState('');
   const [holidayLoading, setHolidayLoading] = useState(false);
+
+  const calculateHolidayDays = () => {
+    if (!holidayDate) return 0;
+    const start = new Date(holidayDate);
+    const end = new Date(holidayEndDate || holidayDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 1;
+    if (start > end) return 1;
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    const diffTime = Math.abs(end - start);
+    return Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  };
 
   const handleEditAttendanceClick = () => {
     if (!selectedDayDetails) return;
@@ -854,6 +867,8 @@ export default function Attendance() {
       setHolidayError('');
       setHolidaySuccess('');
       const res = await adminAttendanceApi.markHoliday({
+        startDate: holidayDate,
+        endDate: holidayEndDate || holidayDate,
         date: holidayDate,
         reason: holidayReason
       });
@@ -2528,17 +2543,56 @@ export default function Attendance() {
               </div>
             )}
 
-            <div className="overflow-y-auto flex-1 pr-1">
+            <div className="overflow-y-auto flex-1 pr-1 max-h-[520px]">
               {holidayActiveTab === 'declare' ? (
                 <form onSubmit={handleSaveHoliday} className="space-y-4">
-                  <div>
-                    <DatePicker
-                      label="Select Date"
-                      value={holidayDate}
-                      onChange={(val) => setHolidayDate(val)}
-                      required
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <DatePicker
+                        label="From Date (Kab Se)"
+                        value={holidayDate}
+                        onChange={(val) => {
+                          setHolidayDate(val);
+                          // If end date is earlier than start date, automatically sync it
+                          if (holidayEndDate && new Date(val) > new Date(holidayEndDate)) {
+                            setHolidayEndDate(val);
+                          }
+                        }}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <DatePicker
+                        label="To Date (Kab Tak)"
+                        value={holidayEndDate || holidayDate}
+                        onChange={(val) => setHolidayEndDate(val)}
+                        required
+                      />
+                    </div>
                   </div>
+
+                  {/* Dynamic Duration / Range Pill */}
+                  {holidayDate && (
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 flex items-center justify-between text-xs font-semibold text-slate-650 animate-fade-in">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-[#E31C1C]" />
+                        <span>
+                          {calculateHolidayDays() > 1 ? (
+                            <>
+                              Multi-Day Holiday: <span className="font-extrabold text-[#E31C1C]">{calculateHolidayDays()} Days</span> ({formatDate(holidayDate)} &mdash; {formatDate(holidayEndDate || holidayDate)})
+                            </>
+                          ) : (
+                            <>
+                              Single Day Holiday: <span className="font-extrabold text-slate-800">{formatDate(holidayDate)}</span> (1 Day)
+                            </>
+                          )}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs">
+                        {calculateHolidayDays() > 1 ? 'Auto-applies all days in range' : 'Single day'}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5 flex flex-col">
                     <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block">Holiday Occasion / Reason</label>
@@ -2546,7 +2600,7 @@ export default function Attendance() {
                       type="text"
                       value={holidayReason}
                       onChange={(e) => setHolidayReason(e.target.value)}
-                      placeholder="e.g. Independence Day, Diwali Office Closure"
+                      placeholder="e.g. Diwali break, Independence Day, Office Closure"
                       className="w-full bg-[#FAF9F6] border border-[#DEDCD8] rounded-xl p-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-slate-500 focus:bg-white transition-all"
                       required
                     />
@@ -2569,7 +2623,7 @@ export default function Attendance() {
                       {holidayLoading ? (
                         <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
                       ) : (
-                        'Declare Holiday'
+                        calculateHolidayDays() > 1 ? `Declare ${calculateHolidayDays()} Holidays` : 'Declare Holiday'
                       )}
                     </button>
                   </div>
@@ -2581,87 +2635,89 @@ export default function Attendance() {
                       No holidays declared yet.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto border border-[#EBEAE6] rounded-2xl">
-                      <div className="w-full overflow-x-auto"><div className="w-full overflow-x-auto"><table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
-                        <thead>
-                          <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider bg-[#FAF9F6]">
-                            <th className="p-3">Date</th>
-                            <th className="p-3">Occasion</th>
-                            <th className="p-3 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#EBEAE6]">
-                          {holidaysList.map((holiday) => (
-                            <tr key={holiday._id} className="hover:bg-[#FAF9F6]/40 transition-colors">
-                              {editingHolidayId === holiday._id ? (
-                                <>
-                                  <td className="p-3">
-                                    <input
-                                      type="date"
-                                      value={editingDate}
-                                      onChange={(e) => setEditingDate(e.target.value)}
-                                      className="bg-white border border-[#DEDCD8] rounded-lg p-1 text-[11px] font-semibold text-slate-800 outline-none w-28"
-                                    />
-                                  </td>
-                                  <td className="p-3">
-                                    <input
-                                      type="text"
-                                      value={editingReason}
-                                      onChange={(e) => setEditingReason(e.target.value)}
-                                      className="bg-white border border-[#DEDCD8] rounded-lg p-1 text-[11px] font-semibold text-slate-800 outline-none w-full"
-                                    />
-                                  </td>
-                                  <td className="p-3 text-right">
-                                    <div className="inline-flex gap-1.5">
-                                      <button
-                                        onClick={() => handleUpdateHoliday(holiday._id)}
-                                        className="px-2 py-1 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer border-0 active:scale-95 transition-all outline-none"
-                                      >
-                                        Save
-                                      </button>
-                                      <button
-                                        onClick={() => setEditingHolidayId(null)}
-                                        className="px-2 py-1 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-655 cursor-pointer border border-slate-200 active:scale-95 transition-all outline-none"
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  </td>
-                                </>
-                              ) : (
-                                <>
-                                  <td className="p-3 font-bold text-slate-800">
-                                    {formatDate(holiday.date)}
-                                  </td>
-                                  <td className="p-3 text-slate-500 font-bold">{holiday.reason}</td>
-                                  <td className="p-3 text-right">
-                                    <div className="inline-flex gap-1.5">
-                                      <button
-                                        onClick={() => {
-                                          setEditingHolidayId(holiday._id);
-                                          setEditingDate(holiday.date.split('T')[0]);
-                                          setEditingReason(holiday.reason);
-                                        }}
-                                        className="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center cursor-pointer border border-blue-200 active:scale-90 transition-all border-0 outline-none"
-                                        title="Edit Holiday"
-                                      >
-                                        <Edit2 size={12} />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteHoliday(holiday._id)}
-                                        className="w-7 h-7 rounded-full bg-rose-50 hover:bg-rose-100 text-brand-red flex items-center justify-center cursor-pointer border border-rose-200 active:scale-90 transition-all border-0 outline-none"
-                                        title="Cancel/Delete Holiday"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </>
-                              )}
+                    <div className="border border-[#EBEAE6] rounded-2xl overflow-hidden shadow-2xs">
+                      <div className="w-full overflow-x-auto max-h-[380px] overflow-y-auto">
+                        <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600 relative">
+                          <thead className="sticky top-0 z-10 bg-[#FAF9F6]">
+                            <tr className="border-b border-[#E8E6E1] text-[10px] font-extrabold text-slate-500 uppercase tracking-wider bg-[#FAF9F6]">
+                              <th className="p-3 bg-[#FAF9F6]">Date</th>
+                              <th className="p-3 bg-[#FAF9F6]">Occasion</th>
+                              <th className="p-3 text-right bg-[#FAF9F6]">Actions</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table></div></div>
+                          </thead>
+                          <tbody className="divide-y divide-[#EBEAE6]">
+                            {holidaysList.map((holiday) => (
+                              <tr key={holiday._id} className="hover:bg-[#FAF9F6]/40 transition-colors">
+                                {editingHolidayId === holiday._id ? (
+                                  <>
+                                    <td className="p-3">
+                                      <input
+                                        type="date"
+                                        value={editingDate}
+                                        onChange={(e) => setEditingDate(e.target.value)}
+                                        className="bg-white border border-[#DEDCD8] rounded-lg p-1 text-[11px] font-semibold text-slate-800 outline-none w-28"
+                                      />
+                                    </td>
+                                    <td className="p-3">
+                                      <input
+                                        type="text"
+                                        value={editingReason}
+                                        onChange={(e) => setEditingReason(e.target.value)}
+                                        className="bg-white border border-[#DEDCD8] rounded-lg p-1 text-[11px] font-semibold text-slate-800 outline-none w-full"
+                                      />
+                                    </td>
+                                    <td className="p-3 text-right">
+                                      <div className="inline-flex gap-1.5">
+                                        <button
+                                          onClick={() => handleUpdateHoliday(holiday._id)}
+                                          className="px-2 py-1 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer border-0 active:scale-95 transition-all outline-none"
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          onClick={() => setEditingHolidayId(null)}
+                                          className="px-2 py-1 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-655 cursor-pointer border border-slate-200 active:scale-95 transition-all outline-none"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <td className="p-3 font-bold text-slate-800">
+                                      {formatDate(holiday.date)}
+                                    </td>
+                                    <td className="p-3 text-slate-500 font-bold">{holiday.reason}</td>
+                                    <td className="p-3 text-right">
+                                      <div className="inline-flex gap-1.5">
+                                        <button
+                                          onClick={() => {
+                                            setEditingHolidayId(holiday._id);
+                                            setEditingDate(holiday.date.split('T')[0]);
+                                            setEditingReason(holiday.reason);
+                                          }}
+                                          className="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center cursor-pointer border border-blue-200 active:scale-90 transition-all border-0 outline-none"
+                                          title="Edit Holiday"
+                                        >
+                                          <Edit2 size={12} />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteHoliday(holiday._id)}
+                                          className="w-7 h-7 rounded-full bg-rose-50 hover:bg-rose-100 text-brand-red flex items-center justify-center cursor-pointer border border-rose-200 active:scale-90 transition-all border-0 outline-none"
+                                          title="Cancel/Delete Holiday"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>

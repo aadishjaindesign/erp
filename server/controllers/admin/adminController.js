@@ -441,73 +441,132 @@ exports.getEmployeeMonthlyReport = async (req, res, next) => {
 };
 
 // @desc    Mark a date as a Holiday and auto-create attendance records for all active employees
+// @desc    Mark a single or multi-day range holiday
 // @route   POST /api/admin/attendance/holiday
 // @access  Private (Admin only)
 exports.markHoliday = async (req, res, next) => {
   try {
-    const { date, reason } = req.body;
-    if (!date) {
-      return res.status(400).json({ success: false, message: 'Please specify the holiday date.' });
+    const { date, startDate, endDate, reason } = req.body;
+    
+    const rawStart = startDate || date;
+    const rawEnd = endDate || startDate || date;
+
+    if (!rawStart) {
+      return res.status(400).json({ success: false, message: 'Please specify the holiday date or start date.' });
     }
 
-    const { start: startOfDay, end: endOfDay } = getIstTodayBoundaries(date);
+    let start = new Date(rawStart);
+    let end = new Date(rawEnd);
 
-    // Save to Holiday collection, checking for duplicate date
-    let holiday = await Holiday.findOne({
-      date: { $gte: startOfDay, $lte: endOfDay }
-    });
-
-    if (holiday) {
-      return res.status(400).json({ success: false, message: 'A holiday is already declared on this date.' });
+    if (isNaN(start.getTime())) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid start date.' });
+    }
+    if (isNaN(end.getTime())) {
+      end = new Date(start);
     }
 
-    holiday = await Holiday.create({
-      date: startOfDay,
-      reason: reason || 'System Holiday'
-    });
+    // Auto-swap if start is after end
+    if (start > end) {
+      const temp = start;
+      start = end;
+      end = temp;
+    }
+
+    // Calculate all dates in the range
+    const daysList = [];
+    const cur = new Date(start);
+    cur.setHours(0, 0, 0, 0);
+    const normalizedEnd = new Date(end);
+    normalizedEnd.setHours(0, 0, 0, 0);
+
+    while (cur <= normalizedEnd) {
+      daysList.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    if (daysList.length > 60) {
+      return res.status(400).json({ success: false, message: 'Holiday range cannot exceed 60 days at once.' });
+    }
 
     // Fetch all active/approved employees
     const employees = await Employee.find({ status: { $in: ['active', 'approved'] } });
 
-    // For each employee, create or update attendance for that date to status 'Holiday'
-    for (const emp of employees) {
-      let attendance = await Attendance.findOne({
-        employee: emp._id,
+    const createdHolidays = [];
+    const updatedHolidays = [];
+
+    for (const day of daysList) {
+      const { start: startOfDay, end: endOfDay } = getIstTodayBoundaries(day);
+
+      // Check if holiday already exists
+      let holiday = await Holiday.findOne({
         date: { $gte: startOfDay, $lte: endOfDay }
       });
 
-      if (attendance) {
-        attendance.status = 'Holiday';
-        attendance.remarks = reason || 'System Holiday';
-        attendance.checkIn = '';
-        attendance.checkOut = '';
-        await attendance.save();
+      if (holiday) {
+        if (reason && holiday.reason !== reason) {
+          holiday.reason = reason;
+          await holiday.save();
+        }
+        updatedHolidays.push(holiday);
       } else {
-        await Attendance.create({
-          employee: emp._id,
+        holiday = await Holiday.create({
           date: startOfDay,
-          status: 'Holiday',
-          checkIn: '',
-          checkOut: '',
-          remarks: reason || 'System Holiday'
+          reason: reason || 'System Holiday'
         });
+        createdHolidays.push(holiday);
+      }
+
+      // For each employee, create or update attendance for that date to status 'Holiday'
+      for (const emp of employees) {
+        let attendance = await Attendance.findOne({
+          employee: emp._id,
+          date: { $gte: startOfDay, $lte: endOfDay }
+        });
+
+        if (attendance) {
+          attendance.status = 'Holiday';
+          attendance.remarks = reason || 'System Holiday';
+          attendance.checkIn = '';
+          attendance.checkOut = '';
+          await attendance.save();
+        } else {
+          await Attendance.create({
+            employee: emp._id,
+            date: startOfDay,
+            status: 'Holiday',
+            checkIn: '',
+            checkOut: '',
+            remarks: reason || 'System Holiday'
+          });
+        }
       }
     }
 
     // Broadcast holiday notification to all active employees
     try {
-      const holidayDateFormatted = new Date(holiday.date).toLocaleDateString('en-IN', {
+      const formattedStartDate = new Date(start).toLocaleDateString('en-IN', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
         timeZone: 'Asia/Kolkata'
       });
+      const formattedEndDate = new Date(end).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Kolkata'
+      });
+
+      const dateLabel = daysList.length > 1 
+        ? `${formattedStartDate} to ${formattedEndDate} (${daysList.length} days)` 
+        : formattedStartDate;
+
       const notificationsToInsert = employees.map((emp) => ({
         recipient: emp._id,
         targetUser: emp._id,
         senderName: 'Admin',
         title: 'Holiday Announcement',
-        message: `New holiday announced: ${holiday.reason || 'Holiday'} on ${holidayDateFormatted}.`,
+        message: `New holiday announced: ${reason || 'System Holiday'} on ${dateLabel}.`,
         type: 'HOLIDAY_ANNOUNCEMENT',
         module: 'Attendance',
         priority: 'MEDIUM'
@@ -520,10 +579,17 @@ exports.markHoliday = async (req, res, next) => {
       console.warn('Failed to broadcast holiday notifications:', notifErr.message);
     }
 
+    const totalDays = daysList.length;
+    const msg = totalDays > 1 
+      ? `Successfully declared ${totalDays} holidays for ${reason || 'System Holiday'}.` 
+      : `Holiday successfully marked.`;
+
     return res.status(200).json({
       success: true,
-      message: `Holiday successfully marked.`,
-      holiday
+      message: msg,
+      count: totalDays,
+      createdCount: createdHolidays.length,
+      holiday: createdHolidays[0] || updatedHolidays[0]
     });
   } catch (err) {
     next(err);
