@@ -324,6 +324,7 @@ exports.getEmployeeMonthlyReport = async (req, res, next) => {
     let holidayCount = 0;
     let absentCount = 0;
     let weekendCount = 0;
+    let missingPunchOutCount = 0;
 
     const report = [];
 
@@ -398,6 +399,22 @@ exports.getEmployeeMonthlyReport = async (req, res, next) => {
       else if (status === 'Absent') absentCount++;
       else if (status === 'Weekend') weekendCount++;
 
+      // Check for missing punch out (checked in, but never checked out)
+      const hasCheckIn = Boolean(record && record.checkIn && record.checkIn !== '-' && String(record.checkIn).trim() !== '');
+      const hasNoCheckOut = !record || !record.checkOut || record.checkOut === '-' || String(record.checkOut).trim() === '';
+      let isMissingPunchOut = false;
+
+      if (hasCheckIn && hasNoCheckOut && status !== 'Weekend' && status !== 'Holiday') {
+        const isCurrentDay = currentDate.getFullYear() === today.getFullYear() &&
+                             currentDate.getMonth() === today.getMonth() &&
+                             currentDate.getDate() === today.getDate();
+        const now = new Date();
+        if (!isCurrentDay || now.getHours() >= 19) {
+          missingPunchOutCount++;
+          isMissingPunchOut = true;
+        }
+      }
+
       report.push({
         date: currentDate.toISOString(),
         dayOfWeek: currentDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' }),
@@ -405,7 +422,8 @@ exports.getEmployeeMonthlyReport = async (req, res, next) => {
         checkIn: record ? record.checkIn || '-' : '-',
         checkOut: record ? record.checkOut || '-' : '-',
         workingHours: record ? (record.workingHours || 0) : 0,
-        remarks: remarks
+        remarks: remarks,
+        isMissingPunchOut: isMissingPunchOut
       });
     }
 
@@ -427,6 +445,7 @@ exports.getEmployeeMonthlyReport = async (req, res, next) => {
         lateDays: lateCount,
         paidLeavesCount: paidLeaveCount,
         unpaidLeavesCount: unpaidLeaveCount,
+        missingPunchOutCount: missingPunchOutCount,
         holidaysCount: holidayCount,
         absentDays: absentCount,
         weekendDays: weekendCount,

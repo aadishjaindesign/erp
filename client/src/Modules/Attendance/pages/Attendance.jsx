@@ -911,6 +911,28 @@ export default function Attendance() {
     }
   }, [showReportModal, reportEmployeeId, selectedReportMonthKey]);
 
+  // Helper to determine if a day has missed punch-out
+  const isDayMissingPunchOut = (day) => {
+    if (!day) return false;
+    const hasIn = Boolean(day.checkIn && day.checkIn !== '-' && String(day.checkIn).trim() !== '');
+    const noOut = !day.checkOut || day.checkOut === '-' || String(day.checkOut).trim() === '';
+    if (!hasIn || !noOut) return false;
+    if (day.status === 'Weekend' || day.status === 'Holiday') return false;
+
+    const d = new Date(day.date);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+    if (startOfDay < startOfToday) {
+      return true;
+    }
+    if (startOfDay.getTime() === startOfToday.getTime()) {
+      return now.getHours() >= 19;
+    }
+    return false;
+  };
+
   // Compute statistics from report data
   const reportStats = useMemo(() => {
     let presents = 0;
@@ -921,6 +943,7 @@ export default function Attendance() {
     let weekends = 0;
     let holidays = 0;
     let halfDays = 0;
+    let missingPunchOuts = 0;
 
     reportData.forEach(day => {
       if (day.status === 'Present' || day.status === 'Work from Home') presents++;
@@ -931,9 +954,13 @@ export default function Attendance() {
       else if (day.status === 'Weekend') weekends++;
       else if (day.status === 'Holiday') holidays++;
       else if (day.status === 'Half Day') halfDays++;
+
+      if (isDayMissingPunchOut(day)) {
+        missingPunchOuts++;
+      }
     });
 
-    return { presents, lates, absents, paidLeaves, unpaidLeaves, weekends, holidays, halfDays };
+    return { presents, lates, absents, paidLeaves, unpaidLeaves, weekends, holidays, halfDays, missingPunchOuts };
   }, [reportData]);
 
   // Export to Excel
@@ -943,14 +970,24 @@ export default function Attendance() {
     const monthLabel = selected ? selected.label : 'Report';
 
     // Format data rows
-    const dataRows = reportData.map(day => ({
-      'Date': formatDate(day.date),
-      'Day': day.dayOfWeek,
-      'Status': day.status,
-      'Check-In': day.checkIn,
-      'Check-Out': day.checkOut,
-      'Remarks': day.remarks
-    }));
+    const dataRows = reportData.map(day => {
+      const isMissingOut = isDayMissingPunchOut(day);
+      let outDisplay = day.checkOut;
+      if (isMissingOut) {
+        outDisplay = 'No Punch-Out';
+      } else if (day.checkIn && day.checkIn !== '-' && (!day.checkOut || day.checkOut === '-')) {
+        outDisplay = 'Active / In Office';
+      }
+
+      return {
+        'Date': formatDate(day.date),
+        'Day': day.dayOfWeek,
+        'Status': day.status,
+        'Check-In': day.checkIn,
+        'Check-Out': outDisplay,
+        'Remarks': day.remarks
+      };
+    });
 
     const XLSX = await import('xlsx');
 
@@ -2373,11 +2410,11 @@ export default function Attendance() {
                       <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Paid Leave' ? 'text-white' : 'text-teal-700'}`}>{reportStats.paidLeaves}</strong>
                     </div>
                     <div 
-                      onClick={() => setReportFilterStatus('Unpaid Leave')}
-                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Unpaid Leave' ? 'bg-orange-500 border-orange-600 shadow-md ring-2 ring-orange-500 ring-offset-1' : 'bg-orange-50/60 border-orange-100 hover:bg-orange-100'}`}
+                      onClick={() => setReportFilterStatus('Missing Punch-Out')}
+                      className={`p-3 border rounded-2xl text-center cursor-pointer transition-all ${reportFilterStatus === 'Missing Punch-Out' ? 'bg-amber-500 border-amber-600 shadow-md ring-2 ring-amber-500 ring-offset-1' : 'bg-amber-50/60 border-amber-100 hover:bg-amber-100'}`}
                     >
-                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Unpaid Leave' ? 'text-orange-50' : 'text-orange-600'}`}>Unpaid (LOP)</span>
-                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Unpaid Leave' ? 'text-white' : 'text-orange-700'}`}>{reportStats.unpaidLeaves}</strong>
+                      <span className={`text-[9px] font-black uppercase tracking-wider block ${reportFilterStatus === 'Missing Punch-Out' ? 'text-amber-50' : 'text-amber-600'}`}>No Punch-Out</span>
+                      <strong className={`text-base font-black mt-1 block ${reportFilterStatus === 'Missing Punch-Out' ? 'text-white' : 'text-amber-700'}`}>{reportStats.missingPunchOuts}</strong>
                     </div>
                     <div 
                       onClick={() => setReportFilterStatus('Holiday')}
@@ -2422,6 +2459,7 @@ export default function Attendance() {
                           if (reportFilterStatus === 'Late') return day.status === 'Late';
                           if (reportFilterStatus === 'Half Day') return day.status === 'Half Day';
                           if (reportFilterStatus === 'Paid Leave') return day.status === 'Paid Leave' || day.status === 'Leave';
+                          if (reportFilterStatus === 'Missing Punch-Out') return isDayMissingPunchOut(day);
                           if (reportFilterStatus === 'Unpaid Leave') return day.status === 'Unpaid Leave';
                           if (reportFilterStatus === 'Holiday') return day.status === 'Holiday';
                           if (reportFilterStatus === 'Weekend') return day.status === 'Weekend';
@@ -2459,7 +2497,28 @@ export default function Attendance() {
                               </span>
                             </td>
                             <td className="p-4 font-mono text-slate-700 font-bold">{day.checkIn}</td>
-                            <td className="p-4 font-mono text-slate-700 font-bold">{day.checkOut}</td>
+                            <td className="p-4 font-mono text-slate-700 font-bold">
+                              {(() => {
+                                const isMissing = isDayMissingPunchOut(day);
+                                if (isMissing) {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200">
+                                      No Punch-Out
+                                    </span>
+                                  );
+                                }
+                                const hasIn = Boolean(day.checkIn && day.checkIn !== '-' && String(day.checkIn).trim() !== '');
+                                const noOut = !day.checkOut || day.checkOut === '-' || String(day.checkOut).trim() === '';
+                                if (hasIn && noOut) {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200">
+                                      Active (In Office)
+                                    </span>
+                                  );
+                                }
+                                return day.checkOut;
+                              })()}
+                            </td>
                             <td className="p-4 text-center">
                               <button
                                 onClick={() => handleOpenQuickEdit({
